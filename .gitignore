@@ -31,6 +31,7 @@ env/
 *.db
 *.sqlite
 *.sqlite3
+docs/
 output/
 reports/
 tmp/
@@ -49,4 +50,9 @@ crewai_flow.html
 
 # Graphify cache
 .graphify_*
+graphify-out/
 graphify-out/cache/
+
+# docs
+docs/
+graphify-out/
