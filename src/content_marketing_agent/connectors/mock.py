@@ -37,6 +37,7 @@ class MockConnector(BaseConnector):
         )
 
     def check_capabilities(self) -> ConnectorCapabilities:
+        # Mocks advertise deterministic capabilities for demos and tests.
         return self._capabilities
 
     def create_draft(self, content_item: ContentItem) -> ConnectorResult:
@@ -49,9 +50,10 @@ class MockConnector(BaseConnector):
         return self._result(content_item, PublicationOperation.PUBLISH, "published")
 
     def fetch_metrics(self, content_item_ids: Sequence[str] | None = None) -> list[PerformanceSnapshot]:
-        ids = list(content_item_ids or ["mock_content_item"])
+        ids = list(content_item_ids or ["mock_content_item"])  # default one fake row if none given
         snapshots: list[PerformanceSnapshot] = []
         for index, content_item_id in enumerate(ids, start=1):
+            # Deterministic fake metrics: stable enough for tests, realistic enough for demos.
             impressions = 1000 + (index * 137)
             clicks = 40 + (index * 7)
             engagements = 120 + (index * 11)
@@ -72,6 +74,7 @@ class MockConnector(BaseConnector):
     def _result(
         self, content_item: ContentItem, operation: PublicationOperation, status: str
     ) -> ConnectorResult:
+        # Stable fake external ID based on platform + content + operation.
         digest = sha1(f"{self.platform.value}:{content_item.id}:{operation.value}".encode()).hexdigest()[
             :10
         ]
@@ -86,4 +89,3 @@ class MockConnector(BaseConnector):
             status=status,
             human_message=f"Mock {self.platform.value} {operation.value} completed.",
         )
-
