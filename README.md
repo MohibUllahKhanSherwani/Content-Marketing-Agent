@@ -4,6 +4,8 @@ This project will become a production-grade CrewAI agent system for Roman Khaliq
 
 The agent team creates and manages multi-channel marketing content: blog posts, email campaigns, social posts, ad copy, landing-page copy, case studies, content calendars, approval workflows, publishing integrations, and monthly performance analysis.
 
+The immediate goal is to support an AgentTalent.ai application/proposal with a credible working demo, then evolve into a production-capable agency content operations system.
+
 ## Current Decisions
 
 - **Framework:** CrewAI with Flows as the top-level orchestrator and specialist Crews for strategy, production, QA, distribution, and analytics.

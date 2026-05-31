@@ -15,7 +15,7 @@ app = FastAPI(
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
-
+# dumps the connector registry state as a dict
 @app.get("/connectors")
 def connectors() -> dict[str, dict[str, object]]:
     registry = build_connector_registry(get_settings())

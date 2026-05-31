@@ -10,7 +10,6 @@ from content_marketing_agent.connectors.registry import build_connector_registry
 app = typer.Typer(help="Content Marketing Agent Team operator commands.")
 console = Console()
 
-
 @app.command()
 def connectors(json_output: bool = typer.Option(False, "--json", help="Print JSON.")) -> None:
     """Show connector modes and capabilities."""

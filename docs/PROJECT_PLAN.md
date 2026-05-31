@@ -24,6 +24,8 @@ This project should not be just a "content generator." It should behave like a s
 
 The goal is to apply for and fulfill the Content Marketing Agent role with a credible production-grade agent team. The system should show that it can handle content volume, maintain quality, adapt tone from technical to conversational, support real channel workflows, and report performance against baseline.
 
+The immediate application context is AgentTalent.ai: the user intends to submit/connect this agent team for Roman Khaliq's Content Marketing Agent role. The demo must therefore communicate professional readiness quickly: not just "the agent writes copy," but "the agent can run an agency content workflow safely."
+
 The demo should be useful even before every platform API is approved. Azure OpenAI will run for real. External platforms will run in hybrid mode: real when credentials and permissions exist, mock otherwise.
 
 ## 3. Product Outcomes
@@ -53,6 +55,8 @@ Main layers:
 - **Persistence:** SQLite for demo and local development, PostgreSQL for production.
 - **API and Dashboard:** FastAPI backend with a simple local dashboard for calendar, review queue, connector status, and analytics.
 - **Observability:** structured logs, run IDs, token/cost counters, connector traces, and failure reasons.
+
+Architectural decision: keep multiple specialist crews coordinated by a Flow, rather than one large crew with every agent. The role requires planning, drafting, editorial QA, human approval, safe distribution, and analytics on different schedules. Those are workflow boundaries, not just writing steps. A single large crew can be useful for a tiny demo, but it makes approval and publishing control less explicit.
 
 ## 5. CrewAI Design
 
@@ -350,4 +354,3 @@ Manual acceptance demo:
 - Retry and dead-letter handling.
 - Deployment documentation.
 - Integration sandbox tests.
-

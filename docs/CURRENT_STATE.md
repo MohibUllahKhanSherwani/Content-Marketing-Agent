@@ -6,6 +6,12 @@ Last updated: 2026-05-31
 
 The repository now has a GitHub-ready Python/CrewAI scaffold. It includes project memory docs, package metadata, CI, source package folders, CrewAI crew skeletons, connector boundaries, initial tests, a generated `uv.lock`, and a local git repository initialized on `main`.
 
+## Application Context
+
+This project is being built so the user can apply a working AI agent/team to AgentTalent.ai for Roman Khaliq's Content Marketing Agent role. The product should demonstrate practical agency readiness, not just a toy writing demo: planning, production, quality review, approval, safe distribution, and analytics all matter.
+
+The near-term goal is a credible local demo that can be shown during application/proposal work. The longer-term goal is a production-capable content marketing operations agent that can use real integrations where available and realistic mocks elsewhere.
+
 Current files:
 
 - `AGENTS.md`: concise instructions for future coding agents.
@@ -33,6 +39,8 @@ Passed locally:
 - `$env:PYTHONPATH='src'; python -m ruff check .`
 - `$env:PYTHONPATH='src'; python -m pytest` (`5 passed`)
 - `uv run pytest` (`5 passed`) after configuring settings to ignore empty `.env` values.
+- `uv run ruff check .`
+- `uv run mypy src`
 - `.venv\Scripts\python.exe -m ruff check .`
 - `.venv\Scripts\python.exe -m mypy src`
 
@@ -71,8 +79,9 @@ Extraction status:
 ## Locked Decisions
 
 - Use CrewAI.
-- Use CrewAI Flows for top-level orchestration.
-- Use specialist Crews for strategy, content production, QA, distribution, and analytics.
+- Use CrewAI Flows for top-level orchestration because approval, publishing, and analytics are workflow boundaries.
+- Use specialist Crews for strategy, content production, QA, distribution, and analytics because these represent separate agency functions with different schedules, models, risks, and outputs.
+- Do not merge everything into one giant crew unless the project is deliberately simplified into a single linear demo; the production target needs explicit workflow gates.
 - Use Azure OpenAI as the real LLM provider.
 - Use `azure/gpt-4o-mini` for high-volume work by default.
 - Use a stronger Azure model such as `azure/gpt-4o` for final review and strategy checks.
@@ -94,15 +103,41 @@ Extraction status:
 - GA4: read-only analytics when credentials exist, mock otherwise.
 - Search: optional Serper or another search provider; mock by default for the demo.
 
-## Next Likely Implementation Step
+## Next Implementation Milestone
 
-Implement the first functional workflow:
+Build the first functional local demo loop: persist demo content items, show them in an API/dashboard-ready review queue, approve one item, and send it through a mock or auto connector without any real publishing.
 
-- Persist content items with SQLModel tables.
+### Immediate Work Queue
+
+1. Add SQLModel persistence for content items, approvals, platform publications, and performance snapshots.
+2. Add repository/service functions for creating demo calendar items, approving content, and recording connector results.
+3. Expand FastAPI endpoints from read-only demo routes to stateful local routes:
+   - `POST /demo/seed`
+   - `GET /content-items`
+   - `GET /content-items/{id}`
+   - `POST /content-items/{id}/approve`
+   - `POST /content-items/{id}/publish-draft`
+4. Keep publishing safe:
+   - real public publish remains blocked unless `ALLOW_REAL_PUBLISH=true`
+   - draft/mock operations are allowed for approved content
+   - non-approved content cannot publish
+5. Add tests for persistence, approval, publish-draft behavior, and connector audit records.
+
+### Milestone Acceptance Criteria
+
+- `uv run pytest`, `uv run ruff check .`, and `uv run mypy src` pass.
+- `uv run uvicorn content_marketing_agent.api:app --reload` exposes OpenAPI docs.
+- Calling `POST /demo/seed` creates sample content items.
+- Calling `POST /content-items/{id}/approve` marks an item approved.
+- Calling `POST /content-items/{id}/publish-draft` records a mock or real draft connector result.
+- Connector status still reports `auto`, `mock`, or `real` clearly.
+
+### After This Milestone
+
 - Wire `MonthlyContentFlow` to call Strategy, Production, Quality, Distribution, and Analytics crews.
-- Add a local dashboard page for connector status, content calendar, and review queue.
+- Add the local dashboard page for connector status, content calendar, and review queue.
 - Implement WordPress draft creation as the first real connector.
-- Keep all other connectors in `auto` with mock fallback until credentials and API permissions are ready.
+- Keep HubSpot, LinkedIn, Meta, GA4, and Search in `auto` with mock fallback until credentials and API permissions are ready.
 
 ## How To Keep This File Useful
 

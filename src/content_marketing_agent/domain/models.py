@@ -11,7 +11,7 @@ from content_marketing_agent.domain.enums import (
     Platform,
 )
 
-
+# Helper used as a default_factory so every model gets a proper timezone-aware timestamp
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
