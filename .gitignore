@@ -32,6 +32,7 @@ env/
 *.sqlite
 *.sqlite3
 docs/
+START_HERE.md
 output/
 reports/
 tmp/
