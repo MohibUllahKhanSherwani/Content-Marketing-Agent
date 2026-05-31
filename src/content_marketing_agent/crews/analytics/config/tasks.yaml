@@ -1,0 +1,25 @@
+performance_snapshot_task:
+  description: >
+    Review available platform metrics and normalize them into a cross-channel
+    performance snapshot.
+  expected_output: >
+    Normalized metrics summary by channel, content item, and campaign.
+  agent: performance_analyst
+
+baseline_comparison_task:
+  description: >
+    Compare current metrics against the baseline. Identify improvements,
+    declines, outliers, and metrics that need more data.
+  expected_output: >
+    Baseline comparison with observations and confidence notes.
+  agent: baseline_analyst
+
+monthly_report_task:
+  description: >
+    Write the monthly performance analysis and next-month recommendations using
+    the performance snapshot and baseline comparison.
+  expected_output: >
+    Monthly report with summary, wins, risks, channel recommendations, topic
+    recommendations, and action items.
+  agent: insights_writer
+

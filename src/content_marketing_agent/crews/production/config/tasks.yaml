@@ -1,0 +1,34 @@
+blog_draft_task:
+  description: >
+    Draft blog content from approved campaign slots. Include title options,
+    slug suggestion, meta description, outline, body copy, FAQ ideas, CTA, and
+    citation placeholders for claims that need evidence.
+  expected_output: >
+    Blog draft package ready for QA with metadata and revision notes.
+  agent: blog_writer
+
+email_draft_task:
+  description: >
+    Draft weekly email content from the campaign brief. Include subject lines,
+    preview text, email body, CTA, segment assumption, and follow-up idea.
+  expected_output: >
+    Email campaign draft package ready for QA.
+  agent: email_copywriter
+
+social_batch_task:
+  description: >
+    Draft daily social content variations for LinkedIn and Meta channels. Include
+    post text, hook, CTA, suggested creative direction, and platform notes.
+  expected_output: >
+    Social batch draft package with channel-specific posts.
+  agent: social_copywriter
+
+conversion_assets_task:
+  description: >
+    Draft ad copy variants, landing-page copy blocks, and case-study structure
+    from the campaign brief and available proof points.
+  expected_output: >
+    Conversion asset package with ad variants, landing-page sections, and
+    case-study draft or outline.
+  agent: conversion_copywriter
+

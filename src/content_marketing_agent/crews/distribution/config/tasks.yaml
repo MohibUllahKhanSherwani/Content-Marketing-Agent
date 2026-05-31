@@ -1,0 +1,24 @@
+scheduling_task:
+  description: >
+    Review approved content items and assign schedule windows that respect
+    channel cadence, campaign priority, and content dependencies.
+  expected_output: >
+    Scheduling plan with content IDs, target platforms, dates, and rationale.
+  agent: calendar_scheduler
+
+connector_preparation_task:
+  description: >
+    Prepare connector payloads for each scheduled item. Keep create draft,
+    schedule, and publish operations separate.
+  expected_output: >
+    Platform payload plan with required fields, connector mode, and operation.
+  agent: connector_operator
+
+publication_audit_task:
+  description: >
+    Summarize distribution outcomes, including platform IDs, URLs, connector
+    modes, failures, and follow-up actions.
+  expected_output: >
+    Publication audit report.
+  agent: publication_auditor
+

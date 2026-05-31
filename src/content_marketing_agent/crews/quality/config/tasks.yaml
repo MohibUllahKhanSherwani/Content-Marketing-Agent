@@ -1,0 +1,23 @@
+editorial_review_task:
+  description: >
+    Review the draft package for completeness, clarity, structure, evidence gaps,
+    and factual risk. Mark issues that require revision or human attention.
+  expected_output: >
+    Editorial scorecard with pass/fail, required revisions, and human-review notes.
+  agent: managing_editor
+
+brand_voice_task:
+  description: >
+    Review content against the Brand Voice Profile, banned claims, avoid list,
+    and preferred CTAs.
+  expected_output: >
+    Brand voice scorecard with violations, suggested rewrites, and pass/fail.
+  agent: brand_voice_reviewer
+
+seo_conversion_task:
+  description: >
+    Review SEO/AEO structure, metadata, answer blocks, CTA alignment, and funnel fit.
+  expected_output: >
+    SEO and conversion scorecard with pass/fail and concrete improvements.
+  agent: seo_conversion_reviewer
+

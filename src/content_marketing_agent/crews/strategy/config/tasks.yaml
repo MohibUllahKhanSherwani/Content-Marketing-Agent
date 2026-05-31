@@ -1,0 +1,35 @@
+market_research_task:
+  description: >
+    Analyze the client profile, campaign objective, audience, competitors, and
+    known performance baseline. Identify audience pains, buying triggers,
+    category language, competitor angles, and claims that need evidence.
+  expected_output: >
+    A concise market research brief with audience insights, competitor angles,
+    evidence gaps, risks, and recommended positioning.
+  agent: market_researcher
+
+seo_aeo_task:
+  description: >
+    Convert the research brief into SEO and answer-engine guidance. Include
+    topic clusters, keyword themes, natural-language questions, answer block
+    ideas, citation needs, and internal linking suggestions.
+  expected_output: >
+    A structured SEO/AEO brief with topic clusters, target queries, content
+    structure guidance, citation requirements, and metadata recommendations.
+  agent: seo_aeo_strategist
+  context:
+    - market_research_task
+
+campaign_plan_task:
+  description: >
+    Build a monthly multi-channel content plan from the research and SEO/AEO
+    guidance. Include 8-12 blog posts, weekly emails, daily social posts, ad
+    variants, landing-page copy, and case-study opportunities where appropriate.
+  expected_output: >
+    A content calendar plan with channels, formats, dates, objectives, funnel
+    stages, CTAs, and success metrics for each content slot.
+  agent: campaign_planner
+  context:
+    - market_research_task
+    - seo_aeo_task
+
