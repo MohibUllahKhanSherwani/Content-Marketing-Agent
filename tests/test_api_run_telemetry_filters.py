@@ -46,6 +46,51 @@ def test_runs_telemetry_summary_returns_totals_and_breakdown() -> None:
     assert payload["successful_runs"] >= 3
     assert payload["total_estimated_cost_usd"] >= 0
     assert "produce_content" in payload["by_run_type"]
+    assert "budget_limited_runs" in payload
+    assert "budget_exceeded_runs" in payload
+
+
+def test_campaign_telemetry_summary_filters_to_campaign_runs() -> None:
+    from content_marketing_agent import api as api_module
+
+    api_module.content_item_store = ContentItemStore()
+    api_module.get_settings = lambda: AppSettings(azure_openai_mode="mock")
+    client = TestClient(app)
+
+    profile = client.post(
+        "/client-profiles",
+        json={"name": "Acme", "audience": ["CTOs"], "offers": ["Platform"]},
+    ).json()
+    campaign_a = client.post(
+        "/campaigns",
+        json={
+            "client_profile_id": profile["id"],
+            "objective": "Campaign A objective",
+            "audience": "Startup CTOs",
+            "funnel_stage": "TOFU",
+            "channels": ["linkedin", "wordpress"],
+        },
+    ).json()
+    campaign_b = client.post(
+        "/campaigns",
+        json={
+            "client_profile_id": profile["id"],
+            "objective": "Campaign B objective",
+            "audience": "Ops Leaders",
+            "funnel_stage": "MOFU",
+            "channels": ["linkedin", "wordpress"],
+        },
+    ).json()
+
+    client.post("/runs/monthly-plan", json={"month": "2026-06", "blog_posts": 8, "campaign_id": campaign_a["id"]})
+    client.post("/runs/monthly-plan", json={"month": "2026-07", "blog_posts": 8, "campaign_id": campaign_b["id"]})
+
+    response = client.get(f"/campaigns/{campaign_a['id']}/telemetry-summary")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["campaign_id"] == campaign_a["id"]
+    assert payload["total_runs"] >= 1
+    assert payload["total_runs"] < 3
 
 
 def test_runs_telemetry_rejects_invalid_date_range() -> None:

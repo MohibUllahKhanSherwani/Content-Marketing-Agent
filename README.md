@@ -96,6 +96,7 @@ npm run build
 - `/calendar`
 - `/connectors`
 - `/telemetry`
+  - run budget visibility and campaign telemetry drilldown
 
 ## Playwright E2E
 
@@ -132,6 +133,7 @@ The current FastAPI app already supports a local review-and-distribution loop:
 - `POST /campaigns`
 - `GET /campaigns/{id}`
 - `GET /campaigns/{id}/content-items`
+- `GET /campaigns/{id}/telemetry-summary`
 - `GET /content-items`
 - `GET /content-items/{id}`
 - `POST /content-items/{id}/approve`

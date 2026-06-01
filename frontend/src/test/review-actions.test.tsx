@@ -41,6 +41,8 @@ function mockFetchWithActions() {
           failed_runs: 0,
           total_estimated_cost_usd: 0,
           total_estimated_tokens: 0,
+          budget_limited_runs: 0,
+          budget_exceeded_runs: 0,
           by_run_type: {},
         }),
         { status: 200 },

@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from content_marketing_agent.config.settings import get_settings
 from content_marketing_agent.connectors.registry import build_connector_registry
 from content_marketing_agent.domain.enums import ContentStatus, Platform
-from content_marketing_agent.domain.models import CampaignBrief, ClientProfile
+from content_marketing_agent.domain.models import CampaignBrief, ClientProfile, RunTelemetry
 from content_marketing_agent.services.analytics import (
     collect_monthly_snapshots,
     summarize_snapshots,
@@ -358,7 +358,7 @@ def run_produce_content(request: ProduceContentRequest) -> dict[str, object]:
         generation_mode=result.generation_mode,
         estimate=estimate,
         budget_limit_usd=request.max_budget_usd,
-        metadata={"strict_real": request.strict_real},
+        metadata={"strict_real": request.strict_real, "campaign_id": request.campaign_id},
     )
     content_item_store.record_run_telemetry(telemetry)
     return {
@@ -391,6 +391,40 @@ def list_run_telemetry(
     return {"runs": [run.model_dump(mode="json") for run in runs]}
 
 
+def _build_telemetry_summary_payload(runs: list[RunTelemetry]) -> dict[str, object]:
+    by_run_type: dict[str, int] = {}
+    successful_runs = 0
+    failed_runs = 0
+    budget_limited_runs = 0
+    budget_exceeded_runs = 0
+    total_estimated_cost_usd = 0.0
+    total_estimated_tokens = 0
+
+    for run in runs:
+        by_run_type[run.run_type] = by_run_type.get(run.run_type, 0) + 1
+        if run.success:
+            successful_runs += 1
+        else:
+            failed_runs += 1
+        if run.budget_limit_usd is not None:
+            budget_limited_runs += 1
+        if run.budget_exceeded:
+            budget_exceeded_runs += 1
+        total_estimated_cost_usd += run.estimated_cost_usd
+        total_estimated_tokens += run.estimated_total_tokens
+
+    return {
+        "total_runs": len(runs),
+        "successful_runs": successful_runs,
+        "failed_runs": failed_runs,
+        "total_estimated_cost_usd": round(total_estimated_cost_usd, 6),
+        "total_estimated_tokens": total_estimated_tokens,
+        "budget_limited_runs": budget_limited_runs,
+        "budget_exceeded_runs": budget_exceeded_runs,
+        "by_run_type": by_run_type,
+    }
+
+
 @app.get("/runs/telemetry/summary")
 def run_telemetry_summary(
     run_type: str | None = None,
@@ -407,21 +441,30 @@ def run_telemetry_summary(
         date_from=parsed_date_from,
         date_to=parsed_date_to,
     )
-    by_run_type: dict[str, int] = {}
-    for run in runs:
-        by_run_type[run.run_type] = by_run_type.get(run.run_type, 0) + 1
-    successful_runs = sum(1 for run in runs if run.success)
-    failed_runs = len(runs) - successful_runs
-    total_estimated_cost_usd = round(sum(run.estimated_cost_usd for run in runs), 6)
-    total_estimated_tokens = sum(run.estimated_total_tokens for run in runs)
-    return {
-        "total_runs": len(runs),
-        "successful_runs": successful_runs,
-        "failed_runs": failed_runs,
-        "total_estimated_cost_usd": total_estimated_cost_usd,
-        "total_estimated_tokens": total_estimated_tokens,
-        "by_run_type": by_run_type,
-    }
+    return _build_telemetry_summary_payload(runs)
+
+
+@app.get("/campaigns/{campaign_id}/telemetry-summary")
+def campaign_run_telemetry_summary(
+    campaign_id: str,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> dict[str, object]:
+    try:
+        _ = content_item_store.get_campaign(campaign_id)
+    except CampaignNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Campaign not found.") from error
+    parsed_date_from = _parse_iso_datetime(date_from, field_name="date_from")
+    parsed_date_to = _parse_iso_datetime(date_to, field_name="date_to")
+    if parsed_date_from and parsed_date_to and parsed_date_from > parsed_date_to:
+        raise HTTPException(status_code=400, detail="date_from must be earlier than or equal to date_to")
+    runs = content_item_store.query_run_telemetry(
+        limit=500,
+        date_from=parsed_date_from,
+        date_to=parsed_date_to,
+        campaign_id=campaign_id,
+    )
+    return {"campaign_id": campaign_id, **_build_telemetry_summary_payload(runs)}
 
 
 @app.post("/runs/monthly-plan")
@@ -451,7 +494,11 @@ def run_monthly_plan(request: MonthlyPlanRequest) -> dict[str, object]:
         items_created=len(saved_items),
         generation_mode="workflow",
         estimate=estimate,
-        metadata={"month": request.month, "blog_posts": request.blog_posts},
+        metadata={
+            "month": request.month,
+            "blog_posts": request.blog_posts,
+            "campaign_id": request.campaign_id,
+        },
     )
     content_item_store.record_run_telemetry(telemetry)
     return {
@@ -551,13 +598,47 @@ def run_monthly_flow(request: MonthlyFlowRequest) -> dict[str, object]:
     )
     planned_items = content_item_store.add_items(plan.items)
 
-    produced = produce_content_drafts(
-        objective=request.objective,
-        settings=settings,
-        items_per_channel=request.items_per_channel,
-        strict_real=request.strict_real,
-        campaign_brief_id=request.campaign_id,
-    )
+    try:
+        produced = produce_content_drafts(
+            objective=request.objective,
+            settings=settings,
+            items_per_channel=request.items_per_channel,
+            strict_real=request.strict_real,
+            campaign_brief_id=request.campaign_id,
+        )
+    except RealProductionError as error:
+        failed_estimate = TelemetryEstimate(
+            input_tokens=max(120, len(planned_items) * 20),
+            output_tokens=0,
+            total_tokens=max(120, len(planned_items) * 20),
+            estimated_cost_usd=round((max(120, len(planned_items) * 20) / 1_000_000) * 0.35, 6),
+        )
+        failed_telemetry = build_run_telemetry(
+            run_type="monthly_flow",
+            started_at=started_at,
+            completed_at=datetime.now(timezone.utc),
+            items_created=len(planned_items),
+            generation_mode="real",
+            estimate=failed_estimate,
+            success=False,
+            error_code="real_generation_failed",
+            metadata={
+                "month": request.month,
+                "plan_items_created": len(planned_items),
+                "production_items_created": 0,
+                "snapshots_collected": 0,
+                "strict_real": request.strict_real,
+                "campaign_id": request.campaign_id,
+            },
+        )
+        content_item_store.record_run_telemetry(failed_telemetry)
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error_code": "real_generation_failed",
+                "message": str(error),
+            },
+        ) from error
     produced_items = content_item_store.add_items(produced.items)
 
     snapshots = collect_monthly_snapshots(settings=settings, content_items=content_item_store.list_items())
@@ -585,6 +666,7 @@ def run_monthly_flow(request: MonthlyFlowRequest) -> dict[str, object]:
             "plan_items_created": len(planned_items),
             "production_items_created": len(produced_items),
             "snapshots_collected": len(snapshots),
+            "campaign_id": request.campaign_id,
         },
     )
     content_item_store.record_run_telemetry(telemetry)

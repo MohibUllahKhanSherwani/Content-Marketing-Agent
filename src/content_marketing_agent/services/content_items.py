@@ -357,6 +357,7 @@ class ContentItemStore:
         run_type: str | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        campaign_id: str | None = None,
     ) -> list[RunTelemetry]:
         with Session(self._engine) as session:
             statement = select(RunTelemetryRecord)
@@ -368,7 +369,10 @@ class ContentItemStore:
                 statement = statement.where(RunTelemetryRecord.completed_at <= date_to)
             statement = statement.order_by(col(RunTelemetryRecord.completed_at).desc()).limit(limit)
             records = session.exec(statement).all()
-        return [self._run_telemetry_record_to_model(record) for record in records]
+        runs = [self._run_telemetry_record_to_model(record) for record in records]
+        if campaign_id is None:
+            return runs
+        return [run for run in runs if str(run.metadata.get("campaign_id", "")) == campaign_id]
 
     def create_client_profile(self, profile: ClientProfile) -> ClientProfile:
         with Session(self._engine) as session:

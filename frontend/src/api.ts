@@ -31,6 +31,8 @@ export type TelemetrySummary = {
   failed_runs: number
   total_estimated_cost_usd: number
   total_estimated_tokens: number
+  budget_limited_runs: number
+  budget_exceeded_runs: number
   by_run_type: Record<string, number>
 }
 
@@ -82,6 +84,15 @@ function buildTelemetrySummaryQuery(filters: TelemetrySummaryFilters): string {
 
 export async function getRunTelemetrySummary(filters: TelemetrySummaryFilters = {}): Promise<TelemetrySummary> {
   return requestJson<TelemetrySummary>(`/runs/telemetry/summary${buildTelemetrySummaryQuery(filters)}`)
+}
+
+export async function getCampaignTelemetrySummary(
+  campaignId: string,
+  filters: TelemetrySummaryFilters = {},
+): Promise<TelemetrySummary & { campaign_id: string }> {
+  return requestJson<TelemetrySummary & { campaign_id: string }>(
+    `/campaigns/${campaignId}/telemetry-summary${buildTelemetrySummaryQuery(filters)}`,
+  )
 }
 
 export async function approveContentItem(contentItemId: string): Promise<ContentItem> {

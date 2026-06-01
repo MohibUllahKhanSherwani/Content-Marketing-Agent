@@ -26,6 +26,8 @@ const mockTelemetry = {
   failed_runs: 0,
   total_estimated_cost_usd: 0.02,
   total_estimated_tokens: 1300,
+  budget_limited_runs: 0,
+  budget_exceeded_runs: 0,
   by_run_type: { produce_content: 1, monthly_plan: 1, integration_smoke: 1 },
 }
 

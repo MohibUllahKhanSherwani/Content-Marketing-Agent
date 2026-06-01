@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-test('review queue approve and publish draft actions show feedback', async ({ page }) => {
+test('review queue shows failure feedback when publish draft is blocked by approval gate', async ({ page }) => {
   await page.route('**/content-items', async (route) => {
     const method = route.request().method()
     if (method === 'GET') {
@@ -14,30 +14,13 @@ test('review queue approve and publish draft actions show feedback', async ({ pa
     await route.continue()
   })
 
-  await page.route('**/content-items/1/approve', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ id: '1', title: 'Item 1', status: 'approved' }),
-    })
-  })
-
   await page.route('**/content-items/1/publish-draft', async (route) => {
     await route.fulfill({
-      status: 200,
+      status: 400,
       contentType: 'application/json',
       body: JSON.stringify({
-        content_item: { id: '1', title: 'Item 1', status: 'approved' },
-        publication: { platform: 'wordpress', operation: 'create_draft', success: true },
+        detail: 'Content item must be approved before draft publish.',
       }),
-    })
-  })
-
-  await page.route('**/content-items/1/request-changes', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ id: '1', title: 'Item 1', status: 'qa_failed' }),
     })
   })
 
@@ -65,11 +48,6 @@ test('review queue approve and publish draft actions show feedback', async ({ pa
   await page.goto('/review-queue')
 
   await expect(page.getByRole('heading', { name: 'Review Queue' })).toBeVisible()
-  await expect(page.getByText('Item 1')).toBeVisible()
-
-  await page.getByRole('button', { name: 'Approve' }).click()
-  await expect(page.getByText('Item approved.')).toBeVisible()
-
   await page.getByRole('button', { name: 'Publish Draft' }).click()
-  await expect(page.getByText('Draft published.')).toBeVisible()
+  await expect(page.getByText('Action failed. Please try again.')).toBeVisible()
 })
