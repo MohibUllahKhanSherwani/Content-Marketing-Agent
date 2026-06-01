@@ -28,6 +28,20 @@ uv run uvicorn content_marketing_agent.api:app --reload
 
 The default connector behavior is safe for demos: Azure OpenAI is real when configured, and external platforms use `auto` mode with mock fallback.
 
+## Implemented Demo Endpoints
+
+The current FastAPI app already supports a local review-and-distribution loop:
+
+- `GET /health`
+- `GET /connectors`
+- `GET /calendar/demo`
+- `POST /demo/seed`
+- `GET /content-items`
+- `GET /content-items/{id}`
+- `POST /content-items/{id}/approve`
+- `POST /content-items/{id}/publish-draft`
+- `GET /content-items/{id}/publications`
+
 ## Success Criteria
 
 - Produce 8-12 blog posts monthly.
