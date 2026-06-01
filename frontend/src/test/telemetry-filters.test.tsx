@@ -4,6 +4,10 @@ import { MemoryRouter } from 'react-router-dom'
 import { DashboardRoutes } from '../routes'
 
 describe('Telemetry filters', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
   it('applies run type and date filters to telemetry summary request', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
@@ -85,5 +89,104 @@ describe('Telemetry filters', () => {
     expect(screen.getByLabelText('Run type')).toHaveValue('monthly_plan')
     expect(screen.getByLabelText('From')).toHaveValue('2026-06-01')
     expect(screen.getByLabelText('To')).toHaveValue('2026-06-30')
+  })
+
+  it('applies the last 7 days preset to date filters', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/runs/telemetry/summary')) {
+        return new Response(
+          JSON.stringify({
+            total_runs: 1,
+            successful_runs: 1,
+            failed_runs: 0,
+            total_estimated_cost_usd: 0.01,
+            total_estimated_tokens: 200,
+            budget_limited_runs: 0,
+            budget_exceeded_runs: 0,
+            by_run_type: { monthly_plan: 1 },
+          }),
+          { status: 200 },
+        )
+      }
+      return new Response(JSON.stringify({ connectors: [] }), { status: 200 })
+    })
+    globalThis.fetch = fetchMock as typeof fetch
+
+    render(
+      <MemoryRouter initialEntries={['/telemetry']}>
+        <DashboardRoutes />
+      </MemoryRouter>,
+    )
+
+    await screen.findByRole('heading', { name: 'Run Telemetry' })
+    fireEvent.click(screen.getByRole('button', { name: 'Last 7 Days' }))
+
+    const toValue = screen.getByLabelText('To') as HTMLInputElement
+    const fromValue = screen.getByLabelText('From') as HTMLInputElement
+    expect(toValue.value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(fromValue.value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+
+    const toDate = new Date(`${toValue.value}T00:00:00Z`)
+    const fromDate = new Date(`${fromValue.value}T00:00:00Z`)
+    const dayDiff = Math.round((toDate.getTime() - fromDate.getTime()) / (24 * 60 * 60 * 1000))
+    expect(dayDiff).toBe(6)
+  })
+
+  it('saves loaded campaign id as a quick pick and reuses it', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/campaigns/cmp_123/telemetry-summary')) {
+        return new Response(
+          JSON.stringify({
+            campaign_id: 'cmp_123',
+            total_runs: 2,
+            successful_runs: 2,
+            failed_runs: 0,
+            total_estimated_cost_usd: 0.02,
+            total_estimated_tokens: 250,
+            budget_limited_runs: 0,
+            budget_exceeded_runs: 0,
+            by_run_type: { produce_content: 2 },
+          }),
+          { status: 200 },
+        )
+      }
+      if (url.includes('/runs/telemetry/summary')) {
+        return new Response(
+          JSON.stringify({
+            total_runs: 1,
+            successful_runs: 1,
+            failed_runs: 0,
+            total_estimated_cost_usd: 0.01,
+            total_estimated_tokens: 200,
+            budget_limited_runs: 0,
+            budget_exceeded_runs: 0,
+            by_run_type: { monthly_plan: 1 },
+          }),
+          { status: 200 },
+        )
+      }
+      return new Response(JSON.stringify({ connectors: [] }), { status: 200 })
+    })
+    globalThis.fetch = fetchMock as typeof fetch
+
+    render(
+      <MemoryRouter initialEntries={['/telemetry']}>
+        <DashboardRoutes />
+      </MemoryRouter>,
+    )
+
+    await screen.findByRole('heading', { name: 'Run Telemetry' })
+
+    fireEvent.change(screen.getByPlaceholderText('Enter campaign id'), { target: { value: 'cmp_123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Load Campaign Telemetry' }))
+
+    await screen.findByText('Campaign: cmp_123')
+    fireEvent.click(screen.getByRole('button', { name: 'cmp_123' }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/campaigns/cmp_123/telemetry-summary'), undefined)
+    })
   })
 })

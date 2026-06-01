@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import {
@@ -8,15 +8,49 @@ import {
 } from '../api'
 import { useAsyncData } from '../hooks/useAsyncData'
 
-const DEFAULT_FILTERS: TelemetrySummaryFilters = {}
+const QUICK_PICKS_STORAGE_KEY = 'telemetry_campaign_quick_picks'
+const MAX_QUICK_PICKS = 5
+
+function formatDateInput(value: Date): string {
+  const year = value.getUTCFullYear()
+  const month = String(value.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(value.getUTCDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function dateWithOffsetDays(base: Date, offsetDays: number): string {
+  const next = new Date(base)
+  next.setUTCDate(base.getUTCDate() + offsetDays)
+  return formatDateInput(next)
+}
+
+function loadCampaignQuickPicksFromStorage(): string[] {
+  try {
+    const raw = localStorage.getItem(QUICK_PICKS_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    const sanitized = parsed.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+    return sanitized.slice(0, MAX_QUICK_PICKS)
+  } catch {
+    return []
+  }
+}
 
 export function RunTelemetryPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [draftRunType, setDraftRunType] = useState(searchParams.get('run_type') ?? '')
-  const [draftDateFrom, setDraftDateFrom] = useState(searchParams.get('date_from') ?? '')
-  const [draftDateTo, setDraftDateTo] = useState(searchParams.get('date_to') ?? '')
+  const initialRunType = searchParams.get('run_type') ?? ''
+  const initialDateFrom = searchParams.get('date_from') ?? ''
+  const initialDateTo = searchParams.get('date_to') ?? ''
+  const [draftRunType, setDraftRunType] = useState(initialRunType)
+  const [draftDateFrom, setDraftDateFrom] = useState(initialDateFrom)
+  const [draftDateTo, setDraftDateTo] = useState(initialDateTo)
   const [draftCampaignId, setDraftCampaignId] = useState('')
-  const [appliedFilters, setAppliedFilters] = useState<TelemetrySummaryFilters>(DEFAULT_FILTERS)
+  const [appliedFilters, setAppliedFilters] = useState<TelemetrySummaryFilters>({
+    runType: initialRunType || undefined,
+    dateFrom: initialDateFrom || undefined,
+    dateTo: initialDateTo || undefined,
+  })
   const [campaignTelemetryError, setCampaignTelemetryError] = useState('')
   const [campaignTelemetrySummary, setCampaignTelemetrySummary] = useState<{
     campaign_id: string
@@ -24,24 +58,15 @@ export function RunTelemetryPage() {
     total_estimated_cost_usd: number
     by_run_type: Record<string, number>
   } | null>(null)
+  const [campaignQuickPicks, setCampaignQuickPicks] = useState<string[]>(loadCampaignQuickPicksFromStorage)
 
-  const syncFiltersFromUrl = useCallback(() => {
-    const runType = searchParams.get('run_type') ?? ''
-    const dateFrom = searchParams.get('date_from') ?? ''
-    const dateTo = searchParams.get('date_to') ?? ''
-    setDraftRunType(runType)
-    setDraftDateFrom(dateFrom)
-    setDraftDateTo(dateTo)
-    setAppliedFilters({
-      runType: runType || undefined,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-    })
-  }, [searchParams])
-
-  useEffect(() => {
-    syncFiltersFromUrl()
-  }, [syncFiltersFromUrl])
+  const saveCampaignQuickPick = (campaignId: string) => {
+    const normalized = campaignId.trim()
+    if (!normalized) return
+    const next = [normalized, ...campaignQuickPicks.filter((item) => item !== normalized)].slice(0, MAX_QUICK_PICKS)
+    setCampaignQuickPicks(next)
+    localStorage.setItem(QUICK_PICKS_STORAGE_KEY, JSON.stringify(next))
+  }
 
   const loadTelemetry = useCallback(() => getRunTelemetrySummary(appliedFilters), [appliedFilters])
   const telemetry = useAsyncData(loadTelemetry, [loadTelemetry])
@@ -60,19 +85,27 @@ export function RunTelemetryPage() {
     setSearchParams(params)
   }
 
-  const loadCampaignTelemetry = async () => {
-    if (!draftCampaignId) return
+  const loadCampaignTelemetryFor = async (campaignId: string) => {
+    if (!campaignId) return
     setCampaignTelemetryError('')
     try {
-      const summary = await getCampaignTelemetrySummary(draftCampaignId, appliedFilters)
+      const summary = await getCampaignTelemetrySummary(campaignId, appliedFilters)
       setCampaignTelemetrySummary(summary)
+      saveCampaignQuickPick(campaignId)
     } catch {
       setCampaignTelemetryError('Campaign telemetry lookup failed. Check campaign id and try again.')
       setCampaignTelemetrySummary(null)
     }
   }
 
+  const loadCampaignTelemetry = async () => loadCampaignTelemetryFor(draftCampaignId)
+
   const dateRangeInvalid = Boolean(draftDateFrom && draftDateTo && draftDateFrom > draftDateTo)
+  const applyPreset = (days: number) => {
+    const today = new Date()
+    setDraftDateTo(formatDateInput(today))
+    setDraftDateFrom(dateWithOffsetDays(today, -days + 1))
+  }
 
   return (
     <section className="panel">
@@ -97,6 +130,11 @@ export function RunTelemetryPage() {
           <input type="date" value={draftDateTo} onChange={(event) => setDraftDateTo(event.target.value)} />
         </label>
         <button type="button" onClick={applyFilters} disabled={dateRangeInvalid}>Apply Filters</button>
+      </div>
+      <div className="filters">
+        <span>Date presets</span>
+        <button type="button" onClick={() => applyPreset(7)}>Last 7 Days</button>
+        <button type="button" onClick={() => applyPreset(30)}>Last 30 Days</button>
       </div>
       {dateRangeInvalid && <p>From date must be on or before To date.</p>}
       {telemetry.loading && <p>Loading...</p>}
@@ -131,6 +169,23 @@ export function RunTelemetryPage() {
       <button type="button" onClick={loadCampaignTelemetry} disabled={!draftCampaignId}>
         Load Campaign Telemetry
       </button>
+      {campaignQuickPicks.length > 0 && (
+        <div className="filters">
+          <span>Quick picks</span>
+          {campaignQuickPicks.map((campaignId) => (
+            <button
+              key={campaignId}
+              type="button"
+              onClick={() => {
+                setDraftCampaignId(campaignId)
+                void loadCampaignTelemetryFor(campaignId)
+              }}
+            >
+              {campaignId}
+            </button>
+          ))}
+        </div>
+      )}
       {campaignTelemetryError && <p>{campaignTelemetryError}</p>}
       {campaignTelemetrySummary && (
         <div>
