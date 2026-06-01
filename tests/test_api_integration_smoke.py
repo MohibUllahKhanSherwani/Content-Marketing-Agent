@@ -15,6 +15,8 @@ def test_integration_smoke_returns_platform_results() -> None:
     payload = response.json()
     assert payload["total_connectors_checked"] >= 6
     assert isinstance(payload["results"], list)
+    assert payload["run_telemetry"]["run_type"] == "integration_smoke"
+    assert isinstance(payload["run_telemetry"]["connector_latency_ms"], dict)
 
     platforms = {item["platform"] for item in payload["results"]}
     assert "wordpress" in platforms

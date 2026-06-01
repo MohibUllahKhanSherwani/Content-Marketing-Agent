@@ -215,3 +215,39 @@ def wp_draft_smoke() -> None:
         f"WordPress draft failed (mode={result.mode.value}) "
         f"error={result.error_code} message={result.human_message}"
     )
+
+
+@app.command("run-telemetry")
+def run_telemetry(
+    limit: int = typer.Option(20, min=1, max=100, help="Number of recent run records."),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON."),
+) -> None:
+    """Show recent run-level telemetry records."""
+
+    runs = content_item_store.list_run_telemetry(limit=limit)
+    if json_output:
+        console.print(json.dumps([run.model_dump(mode="json") for run in runs], indent=2))
+        return
+
+    table = Table(title="Run Telemetry")
+    table.add_column("Run ID")
+    table.add_column("Type")
+    table.add_column("Success")
+    table.add_column("Mode")
+    table.add_column("Items")
+    table.add_column("Tokens")
+    table.add_column("Cost USD")
+    table.add_column("Duration ms")
+
+    for run in runs:
+        table.add_row(
+            run.run_id[:8],
+            run.run_type,
+            str(run.success),
+            run.generation_mode or "",
+            str(run.items_created),
+            str(run.estimated_total_tokens),
+            f"{run.estimated_cost_usd:.6f}",
+            str(run.duration_ms),
+        )
+    console.print(table)

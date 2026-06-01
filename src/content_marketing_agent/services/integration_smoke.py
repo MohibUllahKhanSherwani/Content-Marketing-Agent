@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from time import perf_counter
 
 from content_marketing_agent.config.settings import AppSettings
 from content_marketing_agent.connectors.registry import build_connector_registry
@@ -16,6 +17,7 @@ class IntegrationSmokeResult:
     active_mode: str
     success: bool
     details: str
+    latency_ms: int = 0
 
 
 def run_integration_smoke(settings: AppSettings) -> list[IntegrationSmokeResult]:
@@ -24,6 +26,7 @@ def run_integration_smoke(settings: AppSettings) -> list[IntegrationSmokeResult]
 
     for capability in registry.capabilities():
         connector = registry.get(capability.platform)
+        started_at = perf_counter()
         if capability.can_fetch_metrics:
             snapshots = connector.fetch_metrics(["smoke-check-item"])
             results.append(
@@ -34,6 +37,7 @@ def run_integration_smoke(settings: AppSettings) -> list[IntegrationSmokeResult]
                     active_mode=capability.active_mode.value,
                     success=True,
                     details=f"Fetched {len(snapshots)} snapshots.",
+                    latency_ms=int((perf_counter() - started_at) * 1000),
                 )
             )
             continue
@@ -49,6 +53,7 @@ def run_integration_smoke(settings: AppSettings) -> list[IntegrationSmokeResult]
                     active_mode=capability.active_mode.value,
                     success=publication.success,
                     details=publication.human_message or publication.error_code or "Draft operation completed.",
+                    latency_ms=int((perf_counter() - started_at) * 1000),
                 )
             )
             continue
@@ -61,6 +66,7 @@ def run_integration_smoke(settings: AppSettings) -> list[IntegrationSmokeResult]
                 active_mode=capability.active_mode.value,
                 success=False,
                 details=capability.reason or "No safe smoke operation available.",
+                latency_ms=int((perf_counter() - started_at) * 1000),
             )
         )
 

@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -24,6 +26,11 @@ from content_marketing_agent.services.production import (
     llm_readiness,
     produce_content_drafts,
 )
+from content_marketing_agent.services.run_telemetry import (
+    TelemetryEstimate,
+    build_run_telemetry,
+    estimate_produce_content_run,
+)
 
 app = FastAPI(
     title="Content Marketing Agent Team",
@@ -38,6 +45,7 @@ class ProduceContentRequest(BaseModel):
     items_per_channel: int = Field(default=1, ge=1, le=3)
     strict_real: bool = False
     campaign_id: str | None = None
+    max_budget_usd: float | None = Field(default=None, gt=0)
 
 
 class MonthlyPlanRequest(BaseModel):
@@ -289,6 +297,7 @@ def content_item_approval_decisions(content_item_id: str) -> list[dict[str, obje
 @app.post("/runs/produce-content")
 def run_produce_content(request: ProduceContentRequest) -> dict[str, object]:
     settings = get_settings()
+    started_at = datetime.now(timezone.utc)
     campaign = None
     if request.campaign_id:
         try:
@@ -316,16 +325,99 @@ def run_produce_content(request: ProduceContentRequest) -> dict[str, object]:
                 "message": str(error),
             },
         ) from error
+    estimate = estimate_produce_content_run(
+        objective=objective,
+        items_created=len(result.items),
+        generation_mode=result.generation_mode,
+    )
+    if request.max_budget_usd is not None and estimate.estimated_cost_usd > request.max_budget_usd:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": "run_budget_exceeded",
+                "message": "Estimated run cost exceeded max_budget_usd.",
+                "estimated_cost_usd": estimate.estimated_cost_usd,
+                "max_budget_usd": request.max_budget_usd,
+            },
+        )
     saved_items = content_item_store.add_items(result.items)
+    telemetry = build_run_telemetry(
+        run_type="produce_content",
+        started_at=started_at,
+        completed_at=datetime.now(timezone.utc),
+        items_created=len(saved_items),
+        generation_mode=result.generation_mode,
+        estimate=estimate,
+        budget_limit_usd=request.max_budget_usd,
+        metadata={"strict_real": request.strict_real},
+    )
+    content_item_store.record_run_telemetry(telemetry)
     return {
         "generation_mode": result.generation_mode,
         "items_created": len(saved_items),
         "items": [item.model_dump(mode="json") for item in saved_items],
+        "run_telemetry": telemetry.model_dump(mode="json"),
+    }
+
+
+@app.get("/runs/telemetry")
+def list_run_telemetry(
+    limit: int = 20,
+    run_type: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> dict[str, object]:
+    if limit < 1 or limit > 100:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 100")
+    parsed_date_from = _parse_iso_datetime(date_from, field_name="date_from")
+    parsed_date_to = _parse_iso_datetime(date_to, field_name="date_to")
+    if parsed_date_from and parsed_date_to and parsed_date_from > parsed_date_to:
+        raise HTTPException(status_code=400, detail="date_from must be earlier than or equal to date_to")
+    runs = content_item_store.query_run_telemetry(
+        limit=limit,
+        run_type=run_type,
+        date_from=parsed_date_from,
+        date_to=parsed_date_to,
+    )
+    return {"runs": [run.model_dump(mode="json") for run in runs]}
+
+
+@app.get("/runs/telemetry/summary")
+def run_telemetry_summary(
+    run_type: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> dict[str, object]:
+    parsed_date_from = _parse_iso_datetime(date_from, field_name="date_from")
+    parsed_date_to = _parse_iso_datetime(date_to, field_name="date_to")
+    if parsed_date_from and parsed_date_to and parsed_date_from > parsed_date_to:
+        raise HTTPException(status_code=400, detail="date_from must be earlier than or equal to date_to")
+    runs = content_item_store.query_run_telemetry(
+        limit=100,
+        run_type=run_type,
+        date_from=parsed_date_from,
+        date_to=parsed_date_to,
+    )
+    by_run_type: dict[str, int] = {}
+    for run in runs:
+        by_run_type[run.run_type] = by_run_type.get(run.run_type, 0) + 1
+    successful_runs = sum(1 for run in runs if run.success)
+    failed_runs = len(runs) - successful_runs
+    total_estimated_cost_usd = round(sum(run.estimated_cost_usd for run in runs), 6)
+    total_estimated_tokens = sum(run.estimated_total_tokens for run in runs)
+    return {
+        "total_runs": len(runs),
+        "successful_runs": successful_runs,
+        "failed_runs": failed_runs,
+        "total_estimated_cost_usd": total_estimated_cost_usd,
+        "total_estimated_tokens": total_estimated_tokens,
+        "by_run_type": by_run_type,
     }
 
 
 @app.post("/runs/monthly-plan")
 def run_monthly_plan(request: MonthlyPlanRequest) -> dict[str, object]:
+    started_at = datetime.now(timezone.utc)
     if request.campaign_id:
         try:
             _ = content_item_store.get_campaign(request.campaign_id)
@@ -337,20 +429,57 @@ def run_monthly_plan(request: MonthlyPlanRequest) -> dict[str, object]:
         campaign_brief_id=request.campaign_id,
     )
     saved_items = content_item_store.add_items(plan.items)
+    estimate = TelemetryEstimate(
+        input_tokens=max(64, len(request.month) * 4),
+        output_tokens=len(saved_items) * 180,
+        total_tokens=max(64, len(request.month) * 4) + (len(saved_items) * 180),
+        estimated_cost_usd=round((len(saved_items) * 180 + max(64, len(request.month) * 4)) / 1_000_000 * 0.25, 6),
+    )
+    telemetry = build_run_telemetry(
+        run_type="monthly_plan",
+        started_at=started_at,
+        completed_at=datetime.now(timezone.utc),
+        items_created=len(saved_items),
+        generation_mode="workflow",
+        estimate=estimate,
+        metadata={"month": request.month, "blog_posts": request.blog_posts},
+    )
+    content_item_store.record_run_telemetry(telemetry)
     return {
         "items_created": len(saved_items),
         "summary": plan.summary,
         "items": [item.model_dump(mode="json") for item in saved_items],
+        "run_telemetry": telemetry.model_dump(mode="json"),
     }
 
 
 @app.post("/runs/monthly-analytics")
 def run_monthly_analytics() -> dict[str, object]:
+    started_at = datetime.now(timezone.utc)
     settings = get_settings()
     content_items = content_item_store.list_items()
     snapshots = collect_monthly_snapshots(settings=settings, content_items=content_items)
     persisted_count = content_item_store.record_performance_snapshots(snapshots)
     summary = summarize_snapshots(snapshots)
+    estimate = TelemetryEstimate(
+        input_tokens=max(80, len(content_items) * 20),
+        output_tokens=max(120, len(snapshots) * 30),
+        total_tokens=max(80, len(content_items) * 20) + max(120, len(snapshots) * 30),
+        estimated_cost_usd=round(
+            (max(80, len(content_items) * 20) + max(120, len(snapshots) * 30)) / 1_000_000 * 0.2,
+            6,
+        ),
+    )
+    telemetry = build_run_telemetry(
+        run_type="monthly_analytics",
+        started_at=started_at,
+        completed_at=datetime.now(timezone.utc),
+        items_created=persisted_count,
+        generation_mode="workflow",
+        estimate=estimate,
+        metadata={"source_items_count": len(content_items), "snapshots_collected": len(snapshots)},
+    )
+    content_item_store.record_run_telemetry(telemetry)
     return {
         "snapshots_collected": len(snapshots),
         "snapshots_persisted": persisted_count,
@@ -359,19 +488,39 @@ def run_monthly_analytics() -> dict[str, object]:
             "totals": summary.totals,
             "by_platform": summary.by_platform,
         },
+        "run_telemetry": telemetry.model_dump(mode="json"),
     }
 
 
 @app.post("/runs/integration-smoke")
 def run_connector_integration_smoke() -> dict[str, object]:
+    started_at = datetime.now(timezone.utc)
     settings = get_settings()
     results = run_integration_smoke(settings)
     successes = sum(1 for item in results if item.success)
+    connector_latency_ms = {item.platform: item.latency_ms for item in results}
+    estimate = TelemetryEstimate(
+        input_tokens=60,
+        output_tokens=max(120, len(results) * 40),
+        total_tokens=60 + max(120, len(results) * 40),
+        estimated_cost_usd=round((60 + max(120, len(results) * 40)) / 1_000_000 * 0.15, 6),
+    )
+    telemetry = build_run_telemetry(
+        run_type="integration_smoke",
+        started_at=started_at,
+        completed_at=datetime.now(timezone.utc),
+        items_created=successes,
+        generation_mode="workflow",
+        estimate=estimate,
+        metadata={"total_connectors_checked": len(results), "failures": len(results) - successes},
+    ).model_copy(update={"connector_latency_ms": connector_latency_ms})
+    content_item_store.record_run_telemetry(telemetry)
     return {
         "total_connectors_checked": len(results),
         "successes": successes,
         "failures": len(results) - successes,
         "results": [item.__dict__ for item in results],
+        "run_telemetry": telemetry.model_dump(mode="json"),
     }
 
 
@@ -384,3 +533,16 @@ def monthly_summary() -> dict[str, object]:
         "totals": summary.totals,
         "by_platform": summary.by_platform,
     }
+
+
+def _parse_iso_datetime(value: str | None, *, field_name: str) -> datetime | None:
+    if value is None:
+        return None
+    normalized = value.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=f"{field_name} must be a valid ISO-8601 datetime") from error
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed

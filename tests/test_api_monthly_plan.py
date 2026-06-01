@@ -1,7 +1,6 @@
 from fastapi.testclient import TestClient
 
 from content_marketing_agent.api import app
-from content_marketing_agent.domain.enums import ContentStatus
 from content_marketing_agent.services.content_items import ContentItemStore
 
 
@@ -22,9 +21,10 @@ def test_monthly_plan_creates_briefed_items_with_schedule() -> None:
     assert payload["summary"]["blog_posts"] == 8
     assert payload["summary"]["social_posts"] == 28
     assert payload["summary"]["email_campaigns"] == 4
+    assert payload["run_telemetry"]["run_type"] == "monthly_plan"
 
     items = payload["items"]
-    assert all(item["status"] == ContentStatus.BRIEFED.value for item in items)
+    assert all(item["status"] == "briefed" for item in items)
     assert all(item["scheduled_at"] is not None for item in items)
 
 
@@ -40,7 +40,7 @@ def test_calendar_endpoint_returns_scheduled_items() -> None:
     calendar_items = calendar_response.json()
     assert len(calendar_items) > 0
     assert all(item["scheduled_at"] is not None for item in calendar_items)
-    assert all(item["status"] == ContentStatus.BRIEFED.value for item in calendar_items)
+    assert all(item["status"] == "briefed" for item in calendar_items)
 
 
 def test_monthly_plan_links_items_to_campaign_when_campaign_id_provided() -> None:

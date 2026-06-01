@@ -109,3 +109,23 @@ class PerformanceSnapshot(BaseModel):
         if self.impressions <= 0:
             return 0.0
         return self.engagements / self.impressions
+
+
+class RunTelemetry(BaseModel):
+    run_id: str = Field(default_factory=lambda: str(uuid4()))
+    run_type: str
+    started_at: datetime = Field(default_factory=utc_now)
+    completed_at: datetime = Field(default_factory=utc_now)
+    duration_ms: int = 0
+    success: bool = True
+    error_code: str | None = None
+    generation_mode: str | None = None
+    items_created: int = 0
+    estimated_input_tokens: int = 0
+    estimated_output_tokens: int = 0
+    estimated_total_tokens: int = 0
+    estimated_cost_usd: float = 0.0
+    budget_limit_usd: float | None = None
+    budget_exceeded: bool = False
+    connector_latency_ms: dict[str, int] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)

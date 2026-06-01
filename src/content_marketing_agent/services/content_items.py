@@ -20,6 +20,7 @@ from content_marketing_agent.domain.models import (
     ConnectorResult,
     ContentItem,
     PerformanceSnapshot,
+    RunTelemetry,
     utc_now,
 )
 from content_marketing_agent.services.calendar import demo_calendar_items
@@ -118,6 +119,26 @@ class CampaignBriefRecord(SQLModel, table=True):
     cta: str | None = None
     success_metrics_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=utc_now)
+
+
+class RunTelemetryRecord(SQLModel, table=True):
+    run_id: str = Field(primary_key=True)
+    run_type: str = Field(index=True)
+    started_at: datetime = Field(default_factory=utc_now)
+    completed_at: datetime = Field(default_factory=utc_now)
+    duration_ms: int = 0
+    success: bool = True
+    error_code: str | None = None
+    generation_mode: str | None = None
+    items_created: int = 0
+    estimated_input_tokens: int = 0
+    estimated_output_tokens: int = 0
+    estimated_total_tokens: int = 0
+    estimated_cost_usd: float = 0.0
+    budget_limit_usd: float | None = None
+    budget_exceeded: bool = False
+    connector_latency_ms_json: dict[str, int] = Field(default_factory=dict, sa_column=Column(JSON))
+    metadata_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
 
 
 class ContentItemStore:
@@ -313,6 +334,42 @@ class ContentItemStore:
             records = session.exec(select(PerformanceSnapshotRecord)).all()
         return [self._performance_record_to_model(record) for record in records]
 
+    def record_run_telemetry(self, telemetry: RunTelemetry) -> RunTelemetry:
+        with Session(self._engine) as session:
+            session.add(self._run_telemetry_to_record(telemetry))
+            session.commit()
+        return telemetry
+
+    def list_run_telemetry(self, *, limit: int = 20) -> list[RunTelemetry]:
+        with Session(self._engine) as session:
+            statement = (
+                select(RunTelemetryRecord)
+                .order_by(col(RunTelemetryRecord.completed_at).desc())
+                .limit(limit)
+            )
+            records = session.exec(statement).all()
+        return [self._run_telemetry_record_to_model(record) for record in records]
+
+    def query_run_telemetry(
+        self,
+        *,
+        limit: int = 20,
+        run_type: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> list[RunTelemetry]:
+        with Session(self._engine) as session:
+            statement = select(RunTelemetryRecord)
+            if run_type is not None:
+                statement = statement.where(RunTelemetryRecord.run_type == run_type)
+            if date_from is not None:
+                statement = statement.where(RunTelemetryRecord.completed_at >= date_from)
+            if date_to is not None:
+                statement = statement.where(RunTelemetryRecord.completed_at <= date_to)
+            statement = statement.order_by(col(RunTelemetryRecord.completed_at).desc()).limit(limit)
+            records = session.exec(statement).all()
+        return [self._run_telemetry_record_to_model(record) for record in records]
+
     def create_client_profile(self, profile: ClientProfile) -> ClientProfile:
         with Session(self._engine) as session:
             session.add(self._client_profile_to_record(profile))
@@ -471,4 +528,48 @@ class ContentItemStore:
             cta=record.cta,
             success_metrics=record.success_metrics_json,
             created_at=record.created_at,
+        )
+
+    @staticmethod
+    def _run_telemetry_to_record(telemetry: RunTelemetry) -> RunTelemetryRecord:
+        return RunTelemetryRecord(
+            run_id=telemetry.run_id,
+            run_type=telemetry.run_type,
+            started_at=telemetry.started_at,
+            completed_at=telemetry.completed_at,
+            duration_ms=telemetry.duration_ms,
+            success=telemetry.success,
+            error_code=telemetry.error_code,
+            generation_mode=telemetry.generation_mode,
+            items_created=telemetry.items_created,
+            estimated_input_tokens=telemetry.estimated_input_tokens,
+            estimated_output_tokens=telemetry.estimated_output_tokens,
+            estimated_total_tokens=telemetry.estimated_total_tokens,
+            estimated_cost_usd=telemetry.estimated_cost_usd,
+            budget_limit_usd=telemetry.budget_limit_usd,
+            budget_exceeded=telemetry.budget_exceeded,
+            connector_latency_ms_json=telemetry.connector_latency_ms,
+            metadata_json=telemetry.metadata,
+        )
+
+    @staticmethod
+    def _run_telemetry_record_to_model(record: RunTelemetryRecord) -> RunTelemetry:
+        return RunTelemetry(
+            run_id=record.run_id,
+            run_type=record.run_type,
+            started_at=record.started_at,
+            completed_at=record.completed_at,
+            duration_ms=record.duration_ms,
+            success=record.success,
+            error_code=record.error_code,
+            generation_mode=record.generation_mode,
+            items_created=record.items_created,
+            estimated_input_tokens=record.estimated_input_tokens,
+            estimated_output_tokens=record.estimated_output_tokens,
+            estimated_total_tokens=record.estimated_total_tokens,
+            estimated_cost_usd=record.estimated_cost_usd,
+            budget_limit_usd=record.budget_limit_usd,
+            budget_exceeded=record.budget_exceeded,
+            connector_latency_ms=record.connector_latency_ms_json,
+            metadata=record.metadata_json,
         )

@@ -17,6 +17,7 @@ def test_monthly_analytics_run_persists_snapshots_and_returns_summary() -> None:
     assert payload["snapshots_persisted"] == payload["snapshots_collected"]
     assert payload["summary"]["snapshots_count"] == payload["snapshots_collected"]
     assert payload["summary"]["totals"]["impressions"] > 0
+    assert payload["run_telemetry"]["run_type"] == "monthly_analytics"
 
 
 def test_monthly_summary_reads_persisted_snapshots() -> None:
