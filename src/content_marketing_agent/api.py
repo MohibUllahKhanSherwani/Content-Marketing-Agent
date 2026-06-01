@@ -54,6 +54,15 @@ class MonthlyPlanRequest(BaseModel):
     campaign_id: str | None = None
 
 
+class MonthlyFlowRequest(BaseModel):
+    month: str
+    blog_posts: int = Field(default=8, ge=8, le=12)
+    objective: str = "Generate monthly multi-channel content for campaign goals."
+    items_per_channel: int = Field(default=1, ge=1, le=3)
+    strict_real: bool = False
+    campaign_id: str | None = None
+
+
 class ApprovalRequest(BaseModel):
     approver: str = "human_reviewer"
     notes: str | None = None
@@ -520,6 +529,78 @@ def run_connector_integration_smoke() -> dict[str, object]:
         "successes": successes,
         "failures": len(results) - successes,
         "results": [item.__dict__ for item in results],
+        "run_telemetry": telemetry.model_dump(mode="json"),
+    }
+
+
+@app.post("/runs/monthly-flow")
+def run_monthly_flow(request: MonthlyFlowRequest) -> dict[str, object]:
+    started_at = datetime.now(timezone.utc)
+    settings = get_settings()
+
+    if request.campaign_id:
+        try:
+            _ = content_item_store.get_campaign(request.campaign_id)
+        except CampaignNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Campaign not found.") from error
+
+    plan = build_monthly_plan(
+        month=request.month,
+        blog_posts=request.blog_posts,
+        campaign_brief_id=request.campaign_id,
+    )
+    planned_items = content_item_store.add_items(plan.items)
+
+    produced = produce_content_drafts(
+        objective=request.objective,
+        settings=settings,
+        items_per_channel=request.items_per_channel,
+        strict_real=request.strict_real,
+        campaign_brief_id=request.campaign_id,
+    )
+    produced_items = content_item_store.add_items(produced.items)
+
+    snapshots = collect_monthly_snapshots(settings=settings, content_items=content_item_store.list_items())
+    persisted_snapshots = content_item_store.record_performance_snapshots(snapshots)
+    summary = summarize_snapshots(snapshots)
+
+    estimate = TelemetryEstimate(
+        input_tokens=max(120, len(planned_items) * 20),
+        output_tokens=max(200, len(produced_items) * 40),
+        total_tokens=max(120, len(planned_items) * 20) + max(200, len(produced_items) * 40),
+        estimated_cost_usd=round(
+            (max(120, len(planned_items) * 20) + max(200, len(produced_items) * 40)) / 1_000_000 * 0.35,
+            6,
+        ),
+    )
+    telemetry = build_run_telemetry(
+        run_type="monthly_flow",
+        started_at=started_at,
+        completed_at=datetime.now(timezone.utc),
+        items_created=len(planned_items) + len(produced_items),
+        generation_mode=produced.generation_mode,
+        estimate=estimate,
+        metadata={
+            "month": request.month,
+            "plan_items_created": len(planned_items),
+            "production_items_created": len(produced_items),
+            "snapshots_collected": len(snapshots),
+        },
+    )
+    content_item_store.record_run_telemetry(telemetry)
+
+    return {
+        "plan": {"items_created": len(planned_items), "summary": plan.summary},
+        "production": {"items_created": len(produced_items), "generation_mode": produced.generation_mode},
+        "analytics": {
+            "snapshots_collected": len(snapshots),
+            "snapshots_persisted": persisted_snapshots,
+            "summary": {
+                "snapshots_count": summary.snapshots_count,
+                "totals": summary.totals,
+                "by_platform": summary.by_platform,
+            },
+        },
         "run_telemetry": telemetry.model_dump(mode="json"),
     }
 

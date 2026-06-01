@@ -28,6 +28,95 @@ uv run uvicorn content_marketing_agent.api:app --reload
 
 The default connector behavior is safe for demos: Azure OpenAI is real when configured, and external platforms use `auto` mode with mock fallback.
 
+## Fullstack Getting Started (Backend + Frontend)
+
+### 1) Install backend dependencies
+
+```bash
+uv sync --extra dev
+```
+
+### 2) Configure environment
+
+```bash
+cp .env.example .env
+```
+
+For local safe demo mode, keep external connectors in `auto` and do not enable `ALLOW_REAL_PUBLISH`.
+
+### 3) Start backend API
+
+```bash
+uv run uvicorn content_marketing_agent.api:app --reload
+```
+
+Backend base URL:
+- `http://127.0.0.1:8000`
+- OpenAPI docs: `http://127.0.0.1:8000/docs`
+
+### 4) Install frontend dependencies
+
+```bash
+cd frontend
+npm install
+```
+
+### 5) Start frontend dashboard
+
+```bash
+cd frontend
+npm run dev
+```
+
+Frontend base URL:
+- `http://127.0.0.1:5173`
+
+If needed, set API base explicitly:
+
+```bash
+# PowerShell
+$env:VITE_API_BASE_URL="http://127.0.0.1:8000"
+npm run dev
+```
+
+### 6) Frontend test/lint/build
+
+```bash
+cd frontend
+npm test
+npm run lint
+npm run build
+```
+
+### 7) Frontend routes
+
+- `/review-queue`
+- `/publication-audit`
+- `/campaign-workspace`
+- `/calendar`
+- `/connectors`
+- `/telemetry`
+
+## Playwright E2E
+
+E2E spec and config are included under `frontend/e2e/` and `frontend/playwright.config.ts`.
+
+Install browser binaries (first run only):
+
+```bash
+cd frontend
+npx playwright install chromium
+```
+
+Run E2E:
+
+```bash
+cd frontend
+npm run test:e2e
+```
+
+Note: browser download can take time depending on network. The Playwright config uses an increased `webServer.timeout` to reduce startup flakiness.
+
 ## Implemented Demo Endpoints
 
 The current FastAPI app already supports a local review-and-distribution loop:
@@ -54,7 +143,10 @@ The current FastAPI app already supports a local review-and-distribution loop:
 - `POST /runs/monthly-plan`
 - `POST /runs/produce-content`
 - `POST /runs/monthly-analytics`
+- `POST /runs/monthly-flow`
 - `POST /runs/integration-smoke`
+- `GET /runs/telemetry`
+- `GET /runs/telemetry/summary`
 - `GET /analytics/monthly-summary`
 
 ## Operator CLI
@@ -86,6 +178,24 @@ uv run cma wp-draft-smoke
   - `GA4_PROPERTY_ID`
   - `GOOGLE_APPLICATION_CREDENTIALS` (service account JSON path)
 
+## When Real Credentials Are Required
+
+No real credentials are required for:
+
+- backend feature development
+- frontend feature development
+- backend unit tests
+- frontend unit tests
+- mock/auto demo flows
+
+Real credentials are required for:
+
+- validating Azure generation quality in real mode (`AZURE_API_KEY`, `AZURE_ENDPOINT`)
+- validating real WordPress draft creation
+- validating real HubSpot draft creation
+- validating real GA4 read-only analytics
+- any intentional public publishing path (also requires `ALLOW_REAL_PUBLISH=true`)
+
 ## Success Criteria
 
 - Produce 8-12 blog posts monthly.
@@ -103,6 +213,7 @@ uv run cma wp-draft-smoke
 - `docs/FOLDER_STRUCTURE.md`: folder layout and rationale.
 - `docs/PROJECT_PLAN.md`: full architecture and implementation plan.
 - `docs/INTEGRATIONS.md`: API and connector strategy.
+- `docs/INTEGRATION_SMOKE_PLAYBOOK.md`: credentialed smoke-test playbook and safety checks.
 - `docs/UBIQUITOUS_LANGUAGE.md`: domain glossary and shared terminology.
 - `.env.example`: expected configuration and runtime modes.
 - `AGENTS.md`: concise instructions for future coding agents.
