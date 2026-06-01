@@ -41,3 +41,33 @@ def test_calendar_endpoint_returns_scheduled_items() -> None:
     assert len(calendar_items) > 0
     assert all(item["scheduled_at"] is not None for item in calendar_items)
     assert all(item["status"] == ContentStatus.BRIEFED.value for item in calendar_items)
+
+
+def test_monthly_plan_links_items_to_campaign_when_campaign_id_provided() -> None:
+    from content_marketing_agent import api as api_module
+
+    api_module.content_item_store = ContentItemStore()
+    client = TestClient(app)
+    profile = client.post(
+        "/client-profiles",
+        json={"name": "Campaign Link Test", "audience": ["CTO"], "offers": ["Advisory"]},
+    ).json()
+    campaign = client.post(
+        "/campaigns",
+        json={
+            "client_profile_id": profile["id"],
+            "objective": "Grow qualified inbound",
+            "audience": "Technical founders",
+            "funnel_stage": "MOFU",
+            "channels": ["wordpress", "linkedin"],
+        },
+    ).json()
+
+    response = client.post(
+        "/runs/monthly-plan",
+        json={"month": "2026-05", "blog_posts": 8, "campaign_id": campaign["id"]},
+    )
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert all(item["campaign_brief_id"] == campaign["id"] for item in items)

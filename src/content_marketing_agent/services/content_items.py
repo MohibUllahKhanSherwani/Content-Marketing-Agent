@@ -40,6 +40,7 @@ class CampaignNotFoundError(LookupError):
 
 class ContentItemRecord(SQLModel, table=True):
     id: str = Field(primary_key=True)
+    campaign_brief_id: str | None = None
     title: str
     format: str
     target_platform: str
@@ -142,6 +143,13 @@ class ContentItemStore:
     def list_items(self) -> list[ContentItem]:
         with Session(self._engine) as session:
             records = session.exec(select(ContentItemRecord)).all()
+        return [self._record_to_model(record) for record in records]
+
+    def list_items_by_campaign(self, campaign_id: str) -> list[ContentItem]:
+        with Session(self._engine) as session:
+            records = session.exec(
+                select(ContentItemRecord).where(ContentItemRecord.campaign_brief_id == campaign_id)
+            ).all()
         return [self._record_to_model(record) for record in records]
 
     def list_scheduled_items(self) -> list[ContentItem]:
@@ -341,6 +349,7 @@ class ContentItemStore:
     def _model_to_record(item: ContentItem) -> ContentItemRecord:
         return ContentItemRecord(
             id=item.id,
+            campaign_brief_id=item.campaign_brief_id,
             title=item.title,
             format=item.format.value,
             target_platform=item.target_platform.value,
@@ -359,6 +368,7 @@ class ContentItemStore:
     def _record_to_model(record: ContentItemRecord) -> ContentItem:
         return ContentItem(
             id=record.id,
+            campaign_brief_id=record.campaign_brief_id,
             title=record.title,
             format=ContentFormat(record.format),
             target_platform=Platform(record.target_platform),

@@ -100,3 +100,37 @@ def test_produce_content_strict_real_fails_loudly_when_crew_fails(monkeypatch) -
     assert response.status_code == 502
     detail = response.json()["detail"]
     assert detail["error_code"] == "real_generation_failed"
+
+
+def test_produce_content_uses_campaign_objective_and_links_items_when_campaign_id_provided() -> None:
+    from content_marketing_agent import api as api_module
+
+    api_module.content_item_store = ContentItemStore()
+    api_module.get_settings = lambda: AppSettings(azure_openai_mode="mock")
+    client = TestClient(app)
+    profile = client.post(
+        "/client-profiles",
+        json={"name": "Acme", "audience": ["CTOs"], "offers": ["Platform"]},
+    ).json()
+    campaign = client.post(
+        "/campaigns",
+        json={
+            "client_profile_id": profile["id"],
+            "objective": "Increase qualified demos",
+            "audience": "Startup engineering leaders",
+            "funnel_stage": "TOFU",
+            "channels": ["linkedin", "wordpress"],
+        },
+    ).json()
+
+    response = client.post(
+        "/runs/produce-content",
+        json={"campaign_id": campaign["id"], "items_per_channel": 1},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items_created"] == 4
+    assert all(item["campaign_brief_id"] == campaign["id"] for item in payload["items"])
+    assert all(
+        "Increase qualified demos" in item["metadata"]["objective"] for item in payload["items"]
+    )

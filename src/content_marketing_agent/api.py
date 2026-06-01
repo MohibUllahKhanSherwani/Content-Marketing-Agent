@@ -34,14 +34,16 @@ content_item_store = ContentItemStore.from_settings(get_settings())
 
 
 class ProduceContentRequest(BaseModel):
-    objective: str = "Generate monthly multi-channel content for campaign goals."
+    objective: str | None = None
     items_per_channel: int = Field(default=1, ge=1, le=3)
     strict_real: bool = False
+    campaign_id: str | None = None
 
 
 class MonthlyPlanRequest(BaseModel):
     month: str
     blog_posts: int = Field(default=8, ge=8, le=12)
+    campaign_id: str | None = None
 
 
 class ApprovalRequest(BaseModel):
@@ -170,6 +172,18 @@ def get_campaign(campaign_id: str) -> dict[str, object]:
     return campaign.model_dump(mode="json")
 
 
+@app.get("/campaigns/{campaign_id}/content-items")
+def get_campaign_content_items(campaign_id: str) -> list[dict[str, object]]:
+    try:
+        _ = content_item_store.get_campaign(campaign_id)
+    except CampaignNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Campaign not found.") from error
+    return [
+        item.model_dump(mode="json")
+        for item in content_item_store.list_items_by_campaign(campaign_id)
+    ]
+
+
 @app.get("/content-items")
 def content_items() -> list[dict[str, object]]:
     return [item.model_dump(mode="json") for item in content_item_store.list_items()]
@@ -275,12 +289,24 @@ def content_item_approval_decisions(content_item_id: str) -> list[dict[str, obje
 @app.post("/runs/produce-content")
 def run_produce_content(request: ProduceContentRequest) -> dict[str, object]:
     settings = get_settings()
+    campaign = None
+    if request.campaign_id:
+        try:
+            campaign = content_item_store.get_campaign(request.campaign_id)
+        except CampaignNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Campaign not found.") from error
+
+    objective = request.objective or (campaign.objective if campaign else None)
+    if not objective:
+        objective = "Generate monthly multi-channel content for campaign goals."
     try:
         result = produce_content_drafts(
-            objective=request.objective,
+            objective=objective,
             settings=settings,
             items_per_channel=request.items_per_channel,
             strict_real=request.strict_real,
+            campaign_brief_id=campaign.id if campaign else None,
+            allowed_platforms=campaign.channels if campaign else None,
         )
     except RealProductionError as error:
         raise HTTPException(
@@ -300,7 +326,16 @@ def run_produce_content(request: ProduceContentRequest) -> dict[str, object]:
 
 @app.post("/runs/monthly-plan")
 def run_monthly_plan(request: MonthlyPlanRequest) -> dict[str, object]:
-    plan = build_monthly_plan(month=request.month, blog_posts=request.blog_posts)
+    if request.campaign_id:
+        try:
+            _ = content_item_store.get_campaign(request.campaign_id)
+        except CampaignNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Campaign not found.") from error
+    plan = build_monthly_plan(
+        month=request.month,
+        blog_posts=request.blog_posts,
+        campaign_brief_id=request.campaign_id,
+    )
     saved_items = content_item_store.add_items(plan.items)
     return {
         "items_created": len(saved_items),

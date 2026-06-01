@@ -38,6 +38,11 @@ The current FastAPI app already supports a local review-and-distribution loop:
 - `GET /connectors/diagnostics`
 - `GET /calendar/demo`
 - `POST /demo/seed`
+- `POST /client-profiles`
+- `GET /client-profiles/{id}`
+- `POST /campaigns`
+- `GET /campaigns/{id}`
+- `GET /campaigns/{id}/content-items`
 - `GET /content-items`
 - `GET /content-items/{id}`
 - `POST /content-items/{id}/approve`

@@ -80,3 +80,34 @@ def test_create_campaign_requires_existing_client_profile() -> None:
         },
     )
     assert response.status_code == 404
+
+
+def test_campaign_content_items_endpoint_returns_only_linked_items() -> None:
+    from content_marketing_agent import api as api_module
+
+    api_module.content_item_store = ContentItemStore()
+    client = TestClient(app)
+    profile = client.post(
+        "/client-profiles",
+        json={"name": "Content Link", "audience": ["CMO"], "offers": ["Growth"]},
+    ).json()
+    campaign = client.post(
+        "/campaigns",
+        json={
+            "client_profile_id": profile["id"],
+            "objective": "Improve CTR",
+            "audience": "B2B buyers",
+            "funnel_stage": "MOFU",
+            "channels": ["linkedin"],
+        },
+    ).json()
+
+    client.post(
+        "/runs/monthly-plan",
+        json={"month": "2026-06", "blog_posts": 8, "campaign_id": campaign["id"]},
+    )
+    response = client.get(f"/campaigns/{campaign['id']}/content-items")
+    assert response.status_code == 200
+    items = response.json()
+    assert len(items) > 0
+    assert all(item["campaign_brief_id"] == campaign["id"] for item in items)

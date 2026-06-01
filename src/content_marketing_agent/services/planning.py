@@ -14,7 +14,7 @@ class MonthlyPlan:
     summary: dict[str, int]
 
 
-def build_monthly_plan(*, month: str, blog_posts: int) -> MonthlyPlan:
+def build_monthly_plan(*, month: str, blog_posts: int, campaign_brief_id: str | None = None) -> MonthlyPlan:
     year, month_value = _parse_month(month)
     days_in_month = calendar.monthrange(year, month_value)[1]
     weeks_in_month = _count_mondays(year, month_value)
@@ -26,6 +26,11 @@ def build_monthly_plan(*, month: str, blog_posts: int) -> MonthlyPlan:
     items.extend(_ad_items(year, month_value))
     items.extend(_landing_items(year, month_value))
     items.extend(_case_study_items(year, month_value))
+    if campaign_brief_id:
+        items = [
+            item.model_copy(update={"campaign_brief_id": campaign_brief_id})
+            for item in items
+        ]
 
     summary = {
         "blog_posts": blog_posts,

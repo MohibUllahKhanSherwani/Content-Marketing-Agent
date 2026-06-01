@@ -24,6 +24,8 @@ def produce_content_drafts(
     settings: AppSettings,
     items_per_channel: int = 1,
     strict_real: bool = False,
+    campaign_brief_id: str | None = None,
+    allowed_platforms: list[Platform] | None = None,
 ) -> ProductionResult:
     generation_mode = _resolve_generation_mode(settings)
     templates = _build_templates(
@@ -31,7 +33,11 @@ def produce_content_drafts(
         generation_mode=generation_mode,
         items_per_channel=items_per_channel,
         strict_real=strict_real,
+        allowed_platforms=allowed_platforms,
     )
+    if allowed_platforms:
+        allowed = set(allowed_platforms)
+        templates = [template for template in templates if template[2] in allowed]
     drafted_items = [
         ContentItem(
             title=title,
@@ -47,21 +53,30 @@ def produce_content_drafts(
         )
         for title, content_format, platform, body in templates
     ]
+    if campaign_brief_id:
+        drafted_items = [
+            item.model_copy(update={"campaign_brief_id": campaign_brief_id}) for item in drafted_items
+        ]
     return ProductionResult(generation_mode=generation_mode, items=drafted_items)
 
 
 def _build_templates(
-    *, objective: str, generation_mode: str, items_per_channel: int, strict_real: bool
+    *,
+    objective: str,
+    generation_mode: str,
+    items_per_channel: int,
+    strict_real: bool,
+    allowed_platforms: list[Platform] | None = None,
 ) -> list[tuple[str, ContentFormat, Platform, str]]:
     if generation_mode != "real":
-        return _content_templates(objective, generation_mode, items_per_channel)
+        return _content_templates(objective, generation_mode, items_per_channel, allowed_platforms)
     try:
         return _run_real_production_crew(objective=objective, items_per_channel=items_per_channel)
     except Exception as error:
         if strict_real:
             raise RealProductionError("Real CrewAI production run failed.") from error
         # Real branch attempts CrewAI execution first, then degrades to deterministic templates.
-        return _content_templates(objective, generation_mode, items_per_channel)
+        return _content_templates(objective, generation_mode, items_per_channel, allowed_platforms)
 
 
 def _run_real_production_crew(
@@ -96,7 +111,10 @@ def llm_readiness(settings: AppSettings) -> dict[str, object]:
 
 
 def _content_templates(
-    objective: str, generation_mode: str, items_per_channel: int
+    objective: str,
+    generation_mode: str,
+    items_per_channel: int,
+    allowed_platforms: list[Platform] | None = None,
 ) -> list[tuple[str, ContentFormat, Platform, str]]:
     mode_prefix = "REAL" if generation_mode == "real" else "MOCK"
     templates: list[tuple[ContentFormat, Platform, str]] = [
@@ -108,7 +126,10 @@ def _content_templates(
         (ContentFormat.CASE_STUDY, Platform.WORDPRESS, "Case Study"),
     ]
     output: list[tuple[str, ContentFormat, Platform, str]] = []
+    allowed = set(allowed_platforms) if allowed_platforms else None
     for content_format, platform, label in templates:
+        if allowed and platform not in allowed:
+            continue
         for index in range(1, items_per_channel + 1):
             title = f"{label} Draft {index}: {objective}"
             body = (
