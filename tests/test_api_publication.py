@@ -1,3 +1,5 @@
+import httpx
+import respx
 from fastapi.testclient import TestClient
 
 from content_marketing_agent.api import app
@@ -64,6 +66,38 @@ def test_publish_draft_records_publication_audit() -> None:
     publications = publications_response.json()
     assert len(publications) == 1
     assert publications[0]["operation"] == "create_draft"
+
+
+def test_publish_draft_hubspot_real_mode_records_real_result(monkeypatch) -> None:
+    from content_marketing_agent import api as api_module
+
+    api_module.content_item_store = ContentItemStore(seed_if_empty=False)
+    hubspot_item = ContentItem(
+        title="Email draft",
+        body="Draft body",
+        format="email_campaign",
+        target_platform=Platform.HUBSPOT,
+        status=ContentStatus.APPROVED,
+    )
+    api_module.content_item_store.add_items([hubspot_item])
+    monkeypatch.setattr(
+        api_module,
+        "get_settings",
+        lambda: AppSettings(hubspot_mode="real", hubspot_private_app_token="token"),
+    )
+
+    with respx.mock as router:
+        router.post("https://api.hubapi.com/marketing/v3/marketing-emails/").mock(
+            return_value=httpx.Response(201, json={"id": 234, "name": "Email draft", "isPublished": False})
+        )
+        client = TestClient(app)
+        publish_response = client.post(f"/content-items/{hubspot_item.id}/publish-draft")
+
+    assert publish_response.status_code == 200
+    payload = publish_response.json()
+    assert payload["publication"]["mode"] == ConnectorMode.REAL.value
+    assert payload["publication"]["platform_id"] == "234"
+    assert payload["publication"]["success"] is True
 
 
 class FakeRealPublishConnector(BaseConnector):
