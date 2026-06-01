@@ -3,16 +3,21 @@ from pydantic import BaseModel, Field
 
 from content_marketing_agent.config.settings import get_settings
 from content_marketing_agent.connectors.registry import build_connector_registry
-from content_marketing_agent.domain.enums import ContentStatus
+from content_marketing_agent.domain.enums import ContentStatus, Platform
+from content_marketing_agent.domain.models import CampaignBrief, ClientProfile
 from content_marketing_agent.services.analytics import (
     collect_monthly_snapshots,
     summarize_snapshots,
 )
 from content_marketing_agent.services.calendar import demo_calendar_items
+from content_marketing_agent.services.connector_diagnostics import build_connector_diagnostics
 from content_marketing_agent.services.content_items import (
+    CampaignNotFoundError,
+    ClientProfileNotFoundError,
     ContentItemNotFoundError,
     ContentItemStore,
 )
+from content_marketing_agent.services.integration_smoke import run_integration_smoke
 from content_marketing_agent.services.planning import build_monthly_plan
 from content_marketing_agent.services.production import (
     RealProductionError,
@@ -49,6 +54,29 @@ class RequestChangesRequest(BaseModel):
     notes: str = Field(min_length=3)
 
 
+class ClientProfileRequest(BaseModel):
+    name: str
+    industry: str | None = None
+    audience: list[str] = Field(default_factory=list)
+    offers: list[str] = Field(default_factory=list)
+    competitors: list[str] = Field(default_factory=list)
+    brand_voice: str | None = None
+    banned_claims: list[str] = Field(default_factory=list)
+    preferred_ctas: list[str] = Field(default_factory=list)
+
+
+class CampaignRequest(BaseModel):
+    client_profile_id: str
+    objective: str
+    audience: str
+    funnel_stage: str
+    channels: list[str]
+    keywords: list[str] = Field(default_factory=list)
+    offer: str | None = None
+    cta: str | None = None
+    success_metrics: list[str] = Field(default_factory=list)
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -65,6 +93,12 @@ def connectors() -> dict[str, dict[str, object]]:
     return registry.as_dict()
 
 
+@app.get("/connectors/diagnostics")
+def connector_diagnostics() -> dict[str, object]:
+    diagnostics = build_connector_diagnostics(get_settings())
+    return {"connectors": [item.__dict__ for item in diagnostics]}
+
+
 @app.get("/calendar/demo")
 def calendar_demo() -> list[dict[str, object]]:
     return [item.model_dump(mode="json") for item in demo_calendar_items()]
@@ -79,6 +113,61 @@ def calendar_items() -> list[dict[str, object]]:
 def seed_demo() -> dict[str, int]:
     items_seeded = content_item_store.seed_demo_items()
     return {"items_seeded": items_seeded}
+
+
+@app.post("/client-profiles")
+def create_client_profile(request: ClientProfileRequest) -> dict[str, object]:
+    profile = ClientProfile(
+        name=request.name,
+        industry=request.industry,
+        audience=request.audience,
+        offers=request.offers,
+        competitors=request.competitors,
+        brand_voice=request.brand_voice,
+        banned_claims=request.banned_claims,
+        preferred_ctas=request.preferred_ctas,
+    )
+    created = content_item_store.create_client_profile(profile)
+    return created.model_dump(mode="json")
+
+
+@app.get("/client-profiles/{client_profile_id}")
+def get_client_profile(client_profile_id: str) -> dict[str, object]:
+    try:
+        profile = content_item_store.get_client_profile(client_profile_id)
+    except ClientProfileNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Client profile not found.") from error
+    return profile.model_dump(mode="json")
+
+
+@app.post("/campaigns")
+def create_campaign(request: CampaignRequest) -> dict[str, object]:
+    channels = [Platform(channel) for channel in request.channels]
+    campaign = CampaignBrief(
+        client_profile_id=request.client_profile_id,
+        objective=request.objective,
+        audience=request.audience,
+        funnel_stage=request.funnel_stage,
+        channels=channels,
+        keywords=request.keywords,
+        offer=request.offer,
+        cta=request.cta,
+        success_metrics=request.success_metrics,
+    )
+    try:
+        created = content_item_store.create_campaign(campaign)
+    except ClientProfileNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Client profile not found.") from error
+    return created.model_dump(mode="json")
+
+
+@app.get("/campaigns/{campaign_id}")
+def get_campaign(campaign_id: str) -> dict[str, object]:
+    try:
+        campaign = content_item_store.get_campaign(campaign_id)
+    except CampaignNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Campaign not found.") from error
+    return campaign.model_dump(mode="json")
 
 
 @app.get("/content-items")
@@ -235,6 +324,19 @@ def run_monthly_analytics() -> dict[str, object]:
             "totals": summary.totals,
             "by_platform": summary.by_platform,
         },
+    }
+
+
+@app.post("/runs/integration-smoke")
+def run_connector_integration_smoke() -> dict[str, object]:
+    settings = get_settings()
+    results = run_integration_smoke(settings)
+    successes = sum(1 for item in results if item.success)
+    return {
+        "total_connectors_checked": len(results),
+        "successes": successes,
+        "failures": len(results) - successes,
+        "results": [item.__dict__ for item in results],
     }
 
 

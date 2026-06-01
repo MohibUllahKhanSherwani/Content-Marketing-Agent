@@ -35,6 +35,7 @@ The current FastAPI app already supports a local review-and-distribution loop:
 - `GET /health`
 - `GET /health/llm`
 - `GET /connectors`
+- `GET /connectors/diagnostics`
 - `GET /calendar/demo`
 - `POST /demo/seed`
 - `GET /content-items`
@@ -48,6 +49,7 @@ The current FastAPI app already supports a local review-and-distribution loop:
 - `POST /runs/monthly-plan`
 - `POST /runs/produce-content`
 - `POST /runs/monthly-analytics`
+- `POST /runs/integration-smoke`
 - `GET /analytics/monthly-summary`
 
 ## Operator CLI
@@ -56,8 +58,28 @@ The current FastAPI app already supports a local review-and-distribution loop:
 uv run cma monthly-plan --month 2026-07 --blog-posts 8
 uv run cma produce --objective "Increase inbound demos" --items-per-channel 1
 uv run cma monthly-analytics
+uv run cma connector-diagnostics
+uv run cma integration-smoke
 uv run cma wp-draft-smoke
 ```
+
+## Credentials Needed For Full Real Mode
+
+- Azure OpenAI:
+  - `AZURE_API_KEY`
+  - `AZURE_ENDPOINT`
+  - `AZURE_API_VERSION`
+  - `CONTENT_AGENT_MODEL`
+  - `CONTENT_AGENT_REVIEW_MODEL`
+- WordPress (real draft creation):
+  - `WORDPRESS_BASE_URL`
+  - `WORDPRESS_USERNAME`
+  - `WORDPRESS_APP_PASSWORD`
+- HubSpot (real email draft creation):
+  - `HUBSPOT_PRIVATE_APP_TOKEN`
+- GA4 (real read-only analytics):
+  - `GA4_PROPERTY_ID`
+  - `GOOGLE_APPLICATION_CREDENTIALS` (service account JSON path)
 
 ## Success Criteria
 

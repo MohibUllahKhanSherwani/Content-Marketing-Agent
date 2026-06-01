@@ -15,6 +15,8 @@ from content_marketing_agent.domain.enums import (
     Platform,
 )
 from content_marketing_agent.domain.models import (
+    CampaignBrief,
+    ClientProfile,
     ConnectorResult,
     ContentItem,
     PerformanceSnapshot,
@@ -26,6 +28,14 @@ from content_marketing_agent.storage.database import create_db_engine
 
 class ContentItemNotFoundError(LookupError):
     """Raised when a content item cannot be found."""
+
+
+class ClientProfileNotFoundError(LookupError):
+    """Raised when a client profile cannot be found."""
+
+
+class CampaignNotFoundError(LookupError):
+    """Raised when a campaign cannot be found."""
 
 
 class ContentItemRecord(SQLModel, table=True):
@@ -81,6 +91,32 @@ class PerformanceSnapshotRecord(SQLModel, table=True):
     conversions: int = 0
     spend: float = 0.0
     captured_at: datetime = Field(default_factory=utc_now)
+
+
+class ClientProfileRecord(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    name: str
+    industry: str | None = None
+    audience_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    offers_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    competitors_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    brand_voice: str | None = None
+    banned_claims_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    preferred_ctas_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+
+
+class CampaignBriefRecord(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    client_profile_id: str = Field(index=True)
+    objective: str
+    audience: str
+    funnel_stage: str
+    channels_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    keywords_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    offer: str | None = None
+    cta: str | None = None
+    success_metrics_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class ContentItemStore:
@@ -269,6 +305,33 @@ class ContentItemStore:
             records = session.exec(select(PerformanceSnapshotRecord)).all()
         return [self._performance_record_to_model(record) for record in records]
 
+    def create_client_profile(self, profile: ClientProfile) -> ClientProfile:
+        with Session(self._engine) as session:
+            session.add(self._client_profile_to_record(profile))
+            session.commit()
+        return profile
+
+    def get_client_profile(self, client_profile_id: str) -> ClientProfile:
+        with Session(self._engine) as session:
+            record = session.get(ClientProfileRecord, client_profile_id)
+        if record is None:
+            raise ClientProfileNotFoundError(client_profile_id)
+        return self._client_profile_record_to_model(record)
+
+    def create_campaign(self, campaign: CampaignBrief) -> CampaignBrief:
+        _ = self.get_client_profile(campaign.client_profile_id)
+        with Session(self._engine) as session:
+            session.add(self._campaign_to_record(campaign))
+            session.commit()
+        return campaign
+
+    def get_campaign(self, campaign_id: str) -> CampaignBrief:
+        with Session(self._engine) as session:
+            record = session.get(CampaignBriefRecord, campaign_id)
+        if record is None:
+            raise CampaignNotFoundError(campaign_id)
+        return self._campaign_record_to_model(record)
+
     def _is_empty(self) -> bool:
         with Session(self._engine) as session:
             first = session.exec(select(ContentItemRecord.id)).first()
@@ -338,4 +401,64 @@ class ContentItemStore:
             conversions=record.conversions,
             spend=record.spend,
             captured_at=record.captured_at,
+        )
+
+    @staticmethod
+    def _client_profile_to_record(profile: ClientProfile) -> ClientProfileRecord:
+        return ClientProfileRecord(
+            id=profile.id,
+            name=profile.name,
+            industry=profile.industry,
+            audience_json=profile.audience,
+            offers_json=profile.offers,
+            competitors_json=profile.competitors,
+            brand_voice=profile.brand_voice,
+            banned_claims_json=profile.banned_claims,
+            preferred_ctas_json=profile.preferred_ctas,
+        )
+
+    @staticmethod
+    def _client_profile_record_to_model(record: ClientProfileRecord) -> ClientProfile:
+        return ClientProfile(
+            id=record.id,
+            name=record.name,
+            industry=record.industry,
+            audience=record.audience_json,
+            offers=record.offers_json,
+            competitors=record.competitors_json,
+            brand_voice=record.brand_voice,
+            banned_claims=record.banned_claims_json,
+            preferred_ctas=record.preferred_ctas_json,
+        )
+
+    @staticmethod
+    def _campaign_to_record(campaign: CampaignBrief) -> CampaignBriefRecord:
+        return CampaignBriefRecord(
+            id=campaign.id,
+            client_profile_id=campaign.client_profile_id,
+            objective=campaign.objective,
+            audience=campaign.audience,
+            funnel_stage=campaign.funnel_stage,
+            channels_json=[platform.value for platform in campaign.channels],
+            keywords_json=campaign.keywords,
+            offer=campaign.offer,
+            cta=campaign.cta,
+            success_metrics_json=campaign.success_metrics,
+            created_at=campaign.created_at,
+        )
+
+    @staticmethod
+    def _campaign_record_to_model(record: CampaignBriefRecord) -> CampaignBrief:
+        return CampaignBrief(
+            id=record.id,
+            client_profile_id=record.client_profile_id,
+            objective=record.objective,
+            audience=record.audience,
+            funnel_stage=record.funnel_stage,
+            channels=[Platform(value) for value in record.channels_json],
+            keywords=record.keywords_json,
+            offer=record.offer,
+            cta=record.cta,
+            success_metrics=record.success_metrics_json,
+            created_at=record.created_at,
         )

@@ -18,6 +18,9 @@ class AnalyticsSummary:
 def collect_monthly_snapshots(
     *, settings: AppSettings, content_items: list[ContentItem]
 ) -> list[PerformanceSnapshot]:
+    if not content_items:
+        return []
+
     registry = build_connector_registry(settings)
     item_ids_by_platform: dict[Platform, list[str]] = {}
     for item in content_items:
@@ -25,8 +28,12 @@ def collect_monthly_snapshots(
 
     snapshots: list[PerformanceSnapshot] = []
     for platform, item_ids in item_ids_by_platform.items():
+        if platform == Platform.GA4:
+            continue
         connector = registry.get(platform)
         snapshots.extend(connector.fetch_metrics(item_ids))
+    ga4_connector = registry.get(Platform.GA4)
+    snapshots.extend(ga4_connector.fetch_metrics([item.id for item in content_items]))
     return snapshots
 
 

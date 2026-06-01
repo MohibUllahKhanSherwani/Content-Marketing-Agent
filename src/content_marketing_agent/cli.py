@@ -12,7 +12,9 @@ from content_marketing_agent.services.analytics import (
     collect_monthly_snapshots,
     summarize_snapshots,
 )
+from content_marketing_agent.services.connector_diagnostics import build_connector_diagnostics
 from content_marketing_agent.services.content_items import ContentItemStore
+from content_marketing_agent.services.integration_smoke import run_integration_smoke
 from content_marketing_agent.services.planning import build_monthly_plan
 from content_marketing_agent.services.production import produce_content_drafts
 
@@ -50,6 +52,35 @@ def connectors(json_output: bool = typer.Option(False, "--json", help="Print JSO
             str(capability.can_publish),
             str(capability.can_fetch_metrics),
             capability.reason or "",
+        )
+    console.print(table)
+
+
+@app.command("connector-diagnostics")
+def connector_diagnostics(json_output: bool = typer.Option(False, "--json", help="Print JSON.")) -> None:
+    """Show actionable connector readiness diagnostics."""
+
+    diagnostics = build_connector_diagnostics(get_settings())
+    if json_output:
+        console.print(json.dumps([item.__dict__ for item in diagnostics], indent=2))
+        return
+
+    table = Table(title="Connector Diagnostics")
+    table.add_column("Platform")
+    table.add_column("Requested")
+    table.add_column("Active")
+    table.add_column("Healthy")
+    table.add_column("Missing Credentials")
+    table.add_column("Action")
+
+    for item in diagnostics:
+        table.add_row(
+            item.platform,
+            item.requested_mode,
+            item.active_mode,
+            str(item.healthy),
+            ", ".join(item.missing_credentials),
+            "; ".join(item.action_items),
         )
     console.print(table)
 
@@ -104,6 +135,34 @@ def monthly_analytics() -> None:
         f"Analytics collected: snapshots={persisted}, impressions={summary.totals['impressions']}, "
         f"clicks={summary.totals['clicks']}."
     )
+
+
+@app.command("integration-smoke")
+def integration_smoke(json_output: bool = typer.Option(False, "--json", help="Print JSON.")) -> None:
+    """Run safe connector smoke checks across all configured integrations."""
+
+    results = run_integration_smoke(get_settings())
+    if json_output:
+        console.print(json.dumps([item.__dict__ for item in results], indent=2))
+        return
+
+    table = Table(title="Integration Smoke Results")
+    table.add_column("Platform")
+    table.add_column("Requested")
+    table.add_column("Active")
+    table.add_column("Operation")
+    table.add_column("Success")
+    table.add_column("Details")
+    for item in results:
+        table.add_row(
+            item.platform,
+            item.requested_mode,
+            item.active_mode,
+            item.operation,
+            str(item.success),
+            item.details,
+        )
+    console.print(table)
 
 
 @app.command("wp-draft-smoke")

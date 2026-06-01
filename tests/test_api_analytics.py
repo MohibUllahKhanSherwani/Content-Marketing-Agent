@@ -32,3 +32,15 @@ def test_monthly_summary_reads_persisted_snapshots() -> None:
     assert summary["snapshots_count"] >= 3
     assert summary["totals"]["clicks"] > 0
     assert len(summary["by_platform"]) >= 1
+
+
+def test_monthly_analytics_includes_ga4_rollup_platform() -> None:
+    from content_marketing_agent import api as api_module
+
+    api_module.content_item_store = ContentItemStore()
+    client = TestClient(app)
+
+    run_response = client.post("/runs/monthly-analytics")
+    assert run_response.status_code == 200
+    payload = run_response.json()
+    assert "ga4" in payload["summary"]["by_platform"]
