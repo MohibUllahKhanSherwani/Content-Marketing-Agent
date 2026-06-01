@@ -5,7 +5,7 @@ from typing import Any
 
 from sqlalchemy import JSON
 from sqlalchemy.pool import StaticPool
-from sqlmodel import Column, Field, Session, SQLModel, create_engine, delete, select
+from sqlmodel import Column, Field, Session, SQLModel, col, create_engine, delete, select
 
 from content_marketing_agent.config.settings import AppSettings
 from content_marketing_agent.domain.enums import (
@@ -14,7 +14,12 @@ from content_marketing_agent.domain.enums import (
     ContentStatus,
     Platform,
 )
-from content_marketing_agent.domain.models import ConnectorResult, ContentItem, utc_now
+from content_marketing_agent.domain.models import (
+    ConnectorResult,
+    ContentItem,
+    PerformanceSnapshot,
+    utc_now,
+)
 from content_marketing_agent.services.calendar import demo_calendar_items
 from content_marketing_agent.storage.database import create_db_engine
 
@@ -55,6 +60,29 @@ class PublicationRecord(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utc_now)
 
 
+class ApprovalDecisionRecord(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    content_item_id: str = Field(index=True)
+    approver: str
+    approved: bool
+    notes: str | None = None
+    decided_at: datetime = Field(default_factory=utc_now)
+
+
+class PerformanceSnapshotRecord(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    content_item_id: str | None = Field(default=None, index=True)
+    campaign_brief_id: str | None = None
+    platform: str
+    source_mode: str
+    impressions: int = 0
+    clicks: int = 0
+    engagements: int = 0
+    conversions: int = 0
+    spend: float = 0.0
+    captured_at: datetime = Field(default_factory=utc_now)
+
+
 class ContentItemStore:
     """SQLModel-backed store for content items and publication audit records."""
 
@@ -80,6 +108,13 @@ class ContentItemStore:
             records = session.exec(select(ContentItemRecord)).all()
         return [self._record_to_model(record) for record in records]
 
+    def list_scheduled_items(self) -> list[ContentItem]:
+        with Session(self._engine) as session:
+            records = session.exec(
+                select(ContentItemRecord).where(col(ContentItemRecord.scheduled_at).is_not(None))
+            ).all()
+        return [self._record_to_model(record) for record in records]
+
     def get_item(self, content_item_id: str) -> ContentItem:
         with Session(self._engine) as session:
             record = session.get(ContentItemRecord, content_item_id)
@@ -87,13 +122,53 @@ class ContentItemStore:
             raise ContentItemNotFoundError(content_item_id)
         return self._record_to_model(record)
 
-    def approve_item(self, content_item_id: str) -> ContentItem:
+    def approve_item(
+        self,
+        content_item_id: str,
+        *,
+        approver: str = "human_reviewer",
+        notes: str | None = None,
+    ) -> ContentItem:
         with Session(self._engine) as session:
             record = session.get(ContentItemRecord, content_item_id)
             if record is None:
                 raise ContentItemNotFoundError(content_item_id)
             record.status = ContentStatus.APPROVED.value
             record.updated_at = utc_now()
+            session.add(
+                ApprovalDecisionRecord(
+                    content_item_id=content_item_id,
+                    approver=approver,
+                    approved=True,
+                    notes=notes,
+                )
+            )
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._record_to_model(record)
+
+    def request_changes_item(
+        self,
+        content_item_id: str,
+        *,
+        approver: str = "human_reviewer",
+        notes: str,
+    ) -> ContentItem:
+        with Session(self._engine) as session:
+            record = session.get(ContentItemRecord, content_item_id)
+            if record is None:
+                raise ContentItemNotFoundError(content_item_id)
+            record.status = ContentStatus.QA_FAILED.value
+            record.updated_at = utc_now()
+            session.add(
+                ApprovalDecisionRecord(
+                    content_item_id=content_item_id,
+                    approver=approver,
+                    approved=False,
+                    notes=notes,
+                )
+            )
             session.add(record)
             session.commit()
             session.refresh(record)
@@ -107,9 +182,23 @@ class ContentItemStore:
             session.commit()
         return items
 
+    def update_status(self, content_item_id: str, status: ContentStatus) -> ContentItem:
+        with Session(self._engine) as session:
+            record = session.get(ContentItemRecord, content_item_id)
+            if record is None:
+                raise ContentItemNotFoundError(content_item_id)
+            record.status = status.value
+            record.updated_at = utc_now()
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._record_to_model(record)
+
     def seed_demo_items(self) -> int:
         seeded_items = demo_calendar_items()
         with Session(self._engine) as session:
+            session.exec(delete(PerformanceSnapshotRecord))
+            session.exec(delete(ApprovalDecisionRecord))
             session.exec(delete(PublicationRecord))
             session.exec(delete(ContentItemRecord))
             for item in seeded_items:
@@ -144,6 +233,41 @@ class ContentItemStore:
                 select(PublicationRecord).where(PublicationRecord.content_item_id == content_item_id)
             ).all()
         return [self._publication_record_to_model(record) for record in records]
+
+    def list_approval_decisions(self, content_item_id: str) -> list[ApprovalDecisionRecord]:
+        _ = self.get_item(content_item_id)
+        with Session(self._engine) as session:
+            records = session.exec(
+                select(ApprovalDecisionRecord).where(
+                    ApprovalDecisionRecord.content_item_id == content_item_id
+                )
+            ).all()
+        return list(records)
+
+    def record_performance_snapshots(self, snapshots: list[PerformanceSnapshot]) -> int:
+        with Session(self._engine) as session:
+            for snapshot in snapshots:
+                session.add(
+                    PerformanceSnapshotRecord(
+                        content_item_id=snapshot.content_item_id,
+                        campaign_brief_id=snapshot.campaign_brief_id,
+                        platform=snapshot.platform.value,
+                        source_mode=snapshot.source_mode.value,
+                        impressions=snapshot.impressions,
+                        clicks=snapshot.clicks,
+                        engagements=snapshot.engagements,
+                        conversions=snapshot.conversions,
+                        spend=snapshot.spend,
+                        captured_at=snapshot.captured_at,
+                    )
+                )
+            session.commit()
+        return len(snapshots)
+
+    def list_performance_snapshots(self) -> list[PerformanceSnapshot]:
+        with Session(self._engine) as session:
+            records = session.exec(select(PerformanceSnapshotRecord)).all()
+        return [self._performance_record_to_model(record) for record in records]
 
     def _is_empty(self) -> bool:
         with Session(self._engine) as session:
@@ -199,4 +323,19 @@ class ContentItemStore:
             error_code=record.error_code,
             human_message=record.human_message,
             raw_response=record.raw_response_json,
+        )
+
+    @staticmethod
+    def _performance_record_to_model(record: PerformanceSnapshotRecord) -> PerformanceSnapshot:
+        return PerformanceSnapshot(
+            content_item_id=record.content_item_id,
+            campaign_brief_id=record.campaign_brief_id,
+            platform=Platform(record.platform),
+            source_mode=ConnectorMode(record.source_mode),
+            impressions=record.impressions,
+            clicks=record.clicks,
+            engagements=record.engagements,
+            conversions=record.conversions,
+            spend=record.spend,
+            captured_at=record.captured_at,
         )

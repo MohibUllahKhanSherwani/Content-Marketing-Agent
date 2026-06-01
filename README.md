@@ -33,14 +33,31 @@ The default connector behavior is safe for demos: Azure OpenAI is real when conf
 The current FastAPI app already supports a local review-and-distribution loop:
 
 - `GET /health`
+- `GET /health/llm`
 - `GET /connectors`
 - `GET /calendar/demo`
 - `POST /demo/seed`
 - `GET /content-items`
 - `GET /content-items/{id}`
 - `POST /content-items/{id}/approve`
+- `POST /content-items/{id}/request-changes`
 - `POST /content-items/{id}/publish-draft`
+- `POST /content-items/{id}/publish`
 - `GET /content-items/{id}/publications`
+- `GET /content-items/{id}/approval-decisions`
+- `POST /runs/monthly-plan`
+- `POST /runs/produce-content`
+- `POST /runs/monthly-analytics`
+- `GET /analytics/monthly-summary`
+
+## Operator CLI
+
+```bash
+uv run cma monthly-plan --month 2026-07 --blog-posts 8
+uv run cma produce --objective "Increase inbound demos" --items-per-channel 1
+uv run cma monthly-analytics
+uv run cma wp-draft-smoke
+```
 
 ## Success Criteria
 

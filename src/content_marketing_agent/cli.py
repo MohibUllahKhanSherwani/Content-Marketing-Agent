@@ -6,9 +6,19 @@ from rich.table import Table
 
 from content_marketing_agent.config.settings import get_settings
 from content_marketing_agent.connectors.registry import build_connector_registry
+from content_marketing_agent.domain.enums import ContentFormat, ContentStatus, Platform
+from content_marketing_agent.domain.models import ContentItem
+from content_marketing_agent.services.analytics import (
+    collect_monthly_snapshots,
+    summarize_snapshots,
+)
+from content_marketing_agent.services.content_items import ContentItemStore
+from content_marketing_agent.services.planning import build_monthly_plan
+from content_marketing_agent.services.production import produce_content_drafts
 
 app = typer.Typer(help="Content Marketing Agent Team operator commands.")
 console = Console()
+content_item_store = ContentItemStore.from_settings(get_settings())
 
 @app.command()
 def connectors(json_output: bool = typer.Option(False, "--json", help="Print JSON.")) -> None:
@@ -50,3 +60,99 @@ def hello() -> None:
 
     console.print("Content Marketing Agent Team scaffold is ready.")
 
+
+@app.command()
+def monthly_plan(
+    month: str = typer.Option(..., help="Month in YYYY-MM format."),
+    blog_posts: int = typer.Option(8, min=8, max=12, help="Target number of blog posts."),
+) -> None:
+    """Generate and persist a monthly content calendar plan."""
+
+    plan = build_monthly_plan(month=month, blog_posts=blog_posts)
+    saved = content_item_store.add_items(plan.items)
+    console.print(
+        f"Monthly plan saved: {len(saved)} items (blogs={plan.summary['blog_posts']}, "
+        f"emails={plan.summary['email_campaigns']}, social={plan.summary['social_posts']})."
+    )
+
+
+@app.command()
+def produce(
+    objective: str = typer.Option(..., help="Campaign objective."),
+    items_per_channel: int = typer.Option(1, min=1, max=3, help="Draft count per channel."),
+) -> None:
+    """Generate and persist multi-channel drafts."""
+
+    settings = get_settings()
+    result = produce_content_drafts(
+        objective=objective, settings=settings, items_per_channel=items_per_channel
+    )
+    saved = content_item_store.add_items(result.items)
+    console.print(f"Produced {len(saved)} draft items using mode={result.generation_mode}.")
+
+
+@app.command()
+def monthly_analytics() -> None:
+    """Collect and summarize monthly analytics snapshots."""
+
+    settings = get_settings()
+    items = content_item_store.list_items()
+    snapshots = collect_monthly_snapshots(settings=settings, content_items=items)
+    persisted = content_item_store.record_performance_snapshots(snapshots)
+    summary = summarize_snapshots(snapshots)
+    console.print(
+        f"Analytics collected: snapshots={persisted}, impressions={summary.totals['impressions']}, "
+        f"clicks={summary.totals['clicks']}."
+    )
+
+
+@app.command("wp-draft-smoke")
+def wp_draft_smoke() -> None:
+    """Create a WordPress draft from an approved item for integration smoke checks."""
+
+    settings = get_settings()
+    registry = build_connector_registry(settings)
+    connector = registry.get(Platform.WORDPRESS)
+
+    wordpress_items = [
+        item for item in content_item_store.list_items() if item.target_platform == Platform.WORDPRESS
+    ]
+    approved_wordpress_item = next(
+        (item for item in wordpress_items if item.status == ContentStatus.APPROVED),
+        None,
+    )
+
+    if approved_wordpress_item is None:
+        existing_wordpress_item = wordpress_items[0] if wordpress_items else None
+        if existing_wordpress_item is None:
+            created = content_item_store.add_items(
+                [
+                    ContentItem(
+                        title="WordPress Smoke Draft",
+                        body="Smoke-test draft payload from CLI command.",
+                        format=ContentFormat.BLOG_POST,
+                        target_platform=Platform.WORDPRESS,
+                        status=ContentStatus.DRAFTED,
+                    )
+                ]
+            )
+            existing_wordpress_item = created[0]
+        approved_wordpress_item = content_item_store.approve_item(
+            existing_wordpress_item.id,
+            approver="cli_wp_smoke",
+            notes="Auto-approved for WordPress draft smoke test.",
+        )
+
+    result = connector.create_draft(approved_wordpress_item)
+    content_item_store.record_publication(approved_wordpress_item.id, result)
+
+    if result.success:
+        console.print(
+            f"WordPress draft created (mode={result.mode.value}) "
+            f"id={result.platform_id} url={result.platform_url}"
+        )
+        return
+    console.print(
+        f"WordPress draft failed (mode={result.mode.value}) "
+        f"error={result.error_code} message={result.human_message}"
+    )
