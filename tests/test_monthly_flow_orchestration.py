@@ -4,7 +4,7 @@ from content_marketing_agent.services.content_items import ContentItemStore
 
 
 def test_monthly_content_flow_orchestrates_plan_production_and_analytics() -> None:
-    settings = AppSettings(azure_openai_mode="mock")
+    settings = AppSettings(gemini_api_mode="mock")
     store = ContentItemStore(seed_if_empty=False)
     flow = MonthlyContentFlow(settings=settings, content_item_store=store)
 

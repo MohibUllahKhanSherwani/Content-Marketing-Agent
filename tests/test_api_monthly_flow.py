@@ -10,7 +10,7 @@ def test_monthly_flow_runs_plan_production_analytics_and_returns_telemetry() -> 
     from content_marketing_agent import api as api_module
 
     api_module.content_item_store = ContentItemStore()
-    api_module.get_settings = lambda: AppSettings(azure_openai_mode='mock')
+    api_module.get_settings = lambda: AppSettings(gemini_api_mode='mock')
     client = TestClient(app)
 
     response = client.post(
@@ -38,9 +38,8 @@ def test_monthly_flow_strict_real_failure_returns_502(monkeypatch) -> None:
     monkeypatch.setattr(production_module, "_run_real_production_crew", fake_run_real_production_crew)
     api_module.content_item_store = ContentItemStore()
     api_module.get_settings = lambda: AppSettings(
-        azure_openai_mode="real",
-        azure_api_key="test-key",
-        azure_endpoint="https://example.openai.azure.com",
+        gemini_api_mode="real",
+        gemini_api_key="test-key",
     )
     client = TestClient(app)
 
@@ -66,9 +65,8 @@ def test_monthly_flow_strict_real_failure_records_failed_telemetry(monkeypatch) 
     monkeypatch.setattr(production_module, "_run_real_production_crew", fake_run_real_production_crew)
     api_module.content_item_store = ContentItemStore()
     api_module.get_settings = lambda: AppSettings(
-        azure_openai_mode="real",
-        azure_api_key="test-key",
-        azure_endpoint="https://example.openai.azure.com",
+        gemini_api_mode="real",
+        gemini_api_key="test-key",
     )
     client = TestClient(app)
 

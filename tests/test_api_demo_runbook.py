@@ -10,7 +10,7 @@ def test_demo_runbook_seed_produce_approve_publish_draft_audit_telemetry() -> No
     from content_marketing_agent import api as api_module
 
     api_module.content_item_store = ContentItemStore(seed_if_empty=False)
-    api_module.get_settings = lambda: AppSettings(azure_openai_mode="mock")
+    api_module.get_settings = lambda: AppSettings(gemini_api_mode="mock")
     client = TestClient(app)
 
     seed_response = client.post("/demo/seed")

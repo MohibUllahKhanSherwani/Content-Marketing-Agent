@@ -9,7 +9,7 @@ def test_produce_content_returns_run_telemetry_and_persists_it() -> None:
     from content_marketing_agent import api as api_module
 
     api_module.content_item_store = ContentItemStore()
-    api_module.get_settings = lambda: AppSettings(azure_openai_mode="mock")
+    api_module.get_settings = lambda: AppSettings(gemini_api_mode="mock")
     client = TestClient(app)
 
     response = client.post(
@@ -37,7 +37,7 @@ def test_produce_content_budget_guard_blocks_run_when_exceeded() -> None:
     from content_marketing_agent import api as api_module
 
     api_module.content_item_store = ContentItemStore()
-    api_module.get_settings = lambda: AppSettings(azure_openai_mode="mock")
+    api_module.get_settings = lambda: AppSettings(gemini_api_mode="mock")
     client = TestClient(app)
 
     response = client.post(

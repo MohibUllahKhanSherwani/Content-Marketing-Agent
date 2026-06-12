@@ -18,7 +18,7 @@ def test_runs_telemetry_supports_run_type_filter() -> None:
     from content_marketing_agent import api as api_module
 
     api_module.content_item_store = ContentItemStore()
-    api_module.get_settings = lambda: AppSettings(azure_openai_mode="mock")
+    api_module.get_settings = lambda: AppSettings(gemini_api_mode="mock")
     client = TestClient(app)
 
     _seed_runs(client)
@@ -34,7 +34,7 @@ def test_runs_telemetry_summary_returns_totals_and_breakdown() -> None:
     from content_marketing_agent import api as api_module
 
     api_module.content_item_store = ContentItemStore()
-    api_module.get_settings = lambda: AppSettings(azure_openai_mode="mock")
+    api_module.get_settings = lambda: AppSettings(gemini_api_mode="mock")
     client = TestClient(app)
 
     _seed_runs(client)
@@ -54,7 +54,7 @@ def test_campaign_telemetry_summary_filters_to_campaign_runs() -> None:
     from content_marketing_agent import api as api_module
 
     api_module.content_item_store = ContentItemStore()
-    api_module.get_settings = lambda: AppSettings(azure_openai_mode="mock")
+    api_module.get_settings = lambda: AppSettings(gemini_api_mode="mock")
     client = TestClient(app)
 
     profile = client.post(

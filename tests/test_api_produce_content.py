@@ -6,11 +6,11 @@ from content_marketing_agent.domain.enums import ContentFormat, ContentStatus, P
 from content_marketing_agent.services.content_items import ContentItemStore
 
 
-def test_produce_content_uses_mock_mode_when_azure_not_configured() -> None:
+def test_produce_content_uses_mock_mode_when_gemini_not_configured() -> None:
     from content_marketing_agent import api as api_module
 
     api_module.content_item_store = ContentItemStore()
-    api_module.get_settings = lambda: AppSettings(azure_openai_mode="real")
+    api_module.get_settings = lambda: AppSettings(gemini_api_mode="real")
     client = TestClient(app)
 
     response = client.post("/runs/produce-content", json={"objective": "Increase demo pipeline"})
@@ -22,14 +22,13 @@ def test_produce_content_uses_mock_mode_when_azure_not_configured() -> None:
     assert all(item["status"] == ContentStatus.DRAFTED.value for item in payload["items"])
 
 
-def test_produce_content_uses_real_mode_when_azure_is_configured() -> None:
+def test_produce_content_uses_real_mode_when_gemini_is_configured() -> None:
     from content_marketing_agent import api as api_module
 
     api_module.content_item_store = ContentItemStore()
     api_module.get_settings = lambda: AppSettings(
-        azure_openai_mode="real",
-        azure_api_key="test-key",
-        azure_endpoint="https://example.openai.azure.com",
+        gemini_api_mode="real",
+        gemini_api_key="test-key",
     )
     client = TestClient(app)
 
@@ -63,9 +62,8 @@ def test_produce_content_real_mode_attempts_crew_execution(monkeypatch) -> None:
 
     api_module.content_item_store = ContentItemStore()
     api_module.get_settings = lambda: AppSettings(
-        azure_openai_mode="real",
-        azure_api_key="test-key",
-        azure_endpoint="https://example.openai.azure.com",
+        gemini_api_mode="real",
+        gemini_api_key="test-key",
     )
     client = TestClient(app)
     response = client.post("/runs/produce-content", json={"objective": "Crew integration smoke"})
@@ -87,9 +85,8 @@ def test_produce_content_strict_real_fails_loudly_when_crew_fails(monkeypatch) -
     monkeypatch.setattr(production_module, "_run_real_production_crew", fake_run_real_production_crew)
     api_module.content_item_store = ContentItemStore()
     api_module.get_settings = lambda: AppSettings(
-        azure_openai_mode="real",
-        azure_api_key="test-key",
-        azure_endpoint="https://example.openai.azure.com",
+        gemini_api_mode="real",
+        gemini_api_key="test-key",
     )
     client = TestClient(app)
 
@@ -106,7 +103,7 @@ def test_produce_content_uses_campaign_objective_and_links_items_when_campaign_i
     from content_marketing_agent import api as api_module
 
     api_module.content_item_store = ContentItemStore()
-    api_module.get_settings = lambda: AppSettings(azure_openai_mode="mock")
+    api_module.get_settings = lambda: AppSettings(gemini_api_mode="mock")
     client = TestClient(app)
     profile = client.post(
         "/client-profiles",
