@@ -35,7 +35,7 @@ from content_marketing_agent.services.run_telemetry import (
 app = FastAPI(
     title="Content Marketing Agent Team",
     version="0.1.0",
-    description="CrewAI content marketing workflow with Azure OpenAI and hybrid connectors.",
+    description="CrewAI content marketing workflow with Gemini API and hybrid connectors.",
 )
 content_item_store = ContentItemStore.from_settings(get_settings())
 

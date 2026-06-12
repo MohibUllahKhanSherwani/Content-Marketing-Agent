@@ -12,7 +12,7 @@ class ConnectorMode(StrEnum):
 
 
 class Platform(StrEnum):
-    AZURE_OPENAI = "azure_openai"
+    GEMINI = "gemini"
     WORDPRESS = "wordpress"
     HUBSPOT = "hubspot"
     LINKEDIN = "linkedin"

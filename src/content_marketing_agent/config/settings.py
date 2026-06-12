@@ -25,12 +25,10 @@ class AppSettings(BaseSettings):
     crew_max_iterations: int = 8
     crew_task_timeout_seconds: int = 180
 
-    azure_openai_mode: ConnectorMode = "real"
-    azure_api_key: str | None = None
-    azure_endpoint: str | None = None
-    azure_api_version: str = "2024-06-01"
-    content_agent_model: str = "azure/gpt-4o-mini"
-    content_agent_review_model: str = "azure/gpt-4o"
+    gemini_api_mode: ConnectorMode = "real"
+    gemini_api_key: str | None = None
+    content_agent_model: str = "gemini/gemini-1.5-flash"
+    content_agent_review_model: str = "gemini/gemini-1.5-pro"
 
     search_mode: ConnectorMode = "mock"
     serper_api_key: str | None = None

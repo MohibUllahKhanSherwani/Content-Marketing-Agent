@@ -48,7 +48,7 @@ def produce_content_drafts(
             metadata={
                 "generation_mode": generation_mode,
                 "objective": objective,
-                "provider": "azure_openai" if generation_mode == "real" else "mock_generator",
+                "provider": "gemini" if generation_mode == "real" else "mock_generator",
             },
         )
         for title, content_format, platform, body in templates
@@ -93,19 +93,19 @@ def _run_real_production_crew(
 
 
 def _resolve_generation_mode(settings: AppSettings) -> str:
-    azure_ready = bool(settings.azure_api_key and settings.azure_endpoint)
-    if settings.azure_openai_mode == "real" and azure_ready:
+    gemini_ready = bool(settings.gemini_api_key)
+    if settings.gemini_api_mode == "real" and gemini_ready:
         return "real"
     return "mock"
 
 
 def llm_readiness(settings: AppSettings) -> dict[str, object]:
-    azure_ready = bool(settings.azure_api_key and settings.azure_endpoint)
+    gemini_ready = bool(settings.gemini_api_key)
     mode = _resolve_generation_mode(settings)
     return {
-        "requested_mode": settings.azure_openai_mode,
+        "requested_mode": settings.gemini_api_mode,
         "active_mode": mode,
-        "azure_configured": azure_ready,
+        "gemini_configured": gemini_ready,
         "crew_execution_ready": mode == "real",
     }
 
