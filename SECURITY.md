@@ -3,7 +3,7 @@
 ## Secrets
 
 - Never commit `.env` files or API credentials.
-- Store Azure, WordPress, HubSpot, LinkedIn, Meta, and Google credentials in local `.env` files or deployment secret stores.
+- Store Gemini, WordPress, HubSpot, LinkedIn, Meta, and Google credentials in local `.env` files or deployment secret stores.
 - Keep `.env.example` as documentation only.
 
 ## Publishing Safety

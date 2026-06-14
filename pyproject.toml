@@ -1,7 +1,7 @@
 [project]
 name = "content-marketing-agent"
 version = "0.1.0"
-description = "CrewAI Content Marketing Agent Team with Azure OpenAI and hybrid platform connectors."
+description = "CrewAI Content Marketing Agent Team with Gemini API and hybrid platform connectors."
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 dependencies = [

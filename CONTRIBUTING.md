@@ -9,7 +9,7 @@
 
 ## Development Rules
 
-- Keep Azure OpenAI as the default real LLM provider.
+- Keep Gemini API as the default real LLM provider.
 - Keep platform connectors hybrid: `real`, `mock`, and `auto`.
 - Keep `ALLOW_REAL_PUBLISH=false` unless explicitly testing a real approved publish path.
 - Add tests for connector mode changes, approval gates, and status transitions.

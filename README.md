@@ -9,9 +9,9 @@ The immediate goal is to support an AgentTalent.ai application/proposal with a c
 ## Current Decisions
 
 - **Framework:** CrewAI with Flows as the top-level orchestrator and specialist Crews for strategy, production, QA, distribution, and analytics.
-- **LLM provider:** Azure OpenAI.
-- **Primary model:** `azure/gpt-4o-mini` for high-volume generation and extraction.
-- **Review model:** `azure/gpt-4o` or another stronger Azure deployment for final strategic and quality checks.
+- **LLM provider:** Gemini API.
+- **Primary model:** `gemini/gemini-1.5-flash` for high-volume generation and extraction.
+- **Review model:** `gemini/gemini-1.5-pro` for final strategic and quality checks.
 - **Integrations:** WordPress, HubSpot, LinkedIn, Meta, GA4, and optional web search.
 - **Demo mode:** Hybrid. Use real services where credentials and access exist; otherwise use realistic mocks.
 - **Approval:** Human approval is mandatory before any real publishing.
@@ -26,7 +26,7 @@ uv run cma connectors
 uv run uvicorn content_marketing_agent.api:app --reload
 ```
 
-The default connector behavior is safe for demos: Azure OpenAI is real when configured, and external platforms use `auto` mode with mock fallback.
+The default connector behavior is safe for demos: Gemini API is real when configured, and external platforms use `auto` mode with mock fallback.
 
 ## Fullstack Getting Started (Backend + Frontend)
 
@@ -164,12 +164,11 @@ uv run cma wp-draft-smoke
 
 ## Credentials Needed For Full Real Mode
 
-- Azure OpenAI:
-  - `AZURE_API_KEY`
-  - `AZURE_ENDPOINT`
-  - `AZURE_API_VERSION`
-  - `CONTENT_AGENT_MODEL`
-  - `CONTENT_AGENT_REVIEW_MODEL`
+- Gemini API:
+  - `GEMINI_API_KEY` — your Google AI Studio or Vertex AI API key
+  - `CONTENT_AGENT_MODEL` — model for drafting/extraction (e.g. `gemini/gemini-1.5-flash`)
+  - `CONTENT_AGENT_REVIEW_MODEL` — model for review/strategy (e.g. `gemini/gemini-1.5-pro`)
+  - Models follow the `provider/model-name` format. See `.env.example` for the full list of options.
 - WordPress (real draft creation):
   - `WORDPRESS_BASE_URL`
   - `WORDPRESS_USERNAME`
@@ -192,7 +191,7 @@ No real credentials are required for:
 
 Real credentials are required for:
 
-- validating Azure generation quality in real mode (`AZURE_API_KEY`, `AZURE_ENDPOINT`)
+- validating Gemini generation quality in real mode (`GEMINI_API_KEY`)
 - validating real WordPress draft creation
 - validating real HubSpot draft creation
 - validating real GA4 read-only analytics
@@ -239,4 +238,4 @@ src/content_marketing_agent/
 
 ## Demo Philosophy
 
-The demo should feel real without being blocked by platform approvals. Azure OpenAI runs for real. WordPress, GA4, HubSpot, LinkedIn, and Meta run in `auto` mode: real when credentials and permissions are ready, mock otherwise.
+The demo should feel real without being blocked by platform approvals. Gemini API runs for real. WordPress, GA4, HubSpot, LinkedIn, and Meta run in `auto` mode: real when credentials and permissions are ready, mock otherwise.

@@ -3,7 +3,7 @@
 ## Canon
 - Read `START_HERE.md`, `README.md`, `docs/CURRENT_STATE.md`, `docs/PROJECT_PLAN.md`, `docs/INTEGRATIONS.md`, and `docs/UBIQUITOUS_LANGUAGE.md` before implementation.
 - Build a CrewAI-based Content Marketing Agent Team for multi-channel content creation, approval, publishing, calendar tracking, and analytics.
-- Default to Azure OpenAI as the real LLM provider and hybrid `auto` connectors for external platforms.
+- Default to Gemini API as the real LLM provider and hybrid `auto` connectors for external platforms.
 
 ## Package Manager
 - Use **uv** for Python dependency and command management.
@@ -20,7 +20,7 @@
 | Typecheck | `uv run mypy src` |
 
 ## Runtime Modes
-- `AZURE_OPENAI_MODE=real` for generation.
+- `GEMINI_API_MODE=real` for generation.
 - External connectors use `auto`, `real`, or `mock`.
 - `auto` means real only when credentials and permissions validate; otherwise use realistic mocks.
 - Never publish externally unless the content item is `APPROVED` and the target connector is explicitly allowed to publish.
