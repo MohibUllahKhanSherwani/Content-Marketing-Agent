@@ -10,8 +10,8 @@ The immediate goal is to support an AgentTalent.ai application/proposal with a c
 
 - **Framework:** CrewAI with Flows as the top-level orchestrator and specialist Crews for strategy, production, QA, distribution, and analytics.
 - **LLM provider:** Gemini API.
-- **Primary model:** `gemini/gemini-1.5-flash` for high-volume generation and extraction.
-- **Review model:** `gemini/gemini-1.5-pro` for final strategic and quality checks.
+- **Primary model:** `gemini/gemini-3.5-flash` for high-volume generation and extraction.
+- **Review model:** `gemini/gemini-2.0-flash-lite` for final strategic and quality checks.
 - **Integrations:** WordPress, HubSpot, LinkedIn, Meta, GA4, and optional web search.
 - **Demo mode:** Hybrid. Use real services where credentials and access exist; otherwise use realistic mocks.
 - **Approval:** Human approval is mandatory before any real publishing.

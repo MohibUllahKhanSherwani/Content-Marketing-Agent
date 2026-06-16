@@ -27,8 +27,8 @@ class AppSettings(BaseSettings):
 
     gemini_api_mode: ConnectorMode = "real"
     gemini_api_key: str | None = None
-    content_agent_model: str = "gemini/gemini-1.5-flash"
-    content_agent_review_model: str = "gemini/gemini-1.5-pro"
+    content_agent_model: str = "gemini/gemini-3.5-flash"
+    content_agent_review_model: str = "gemini/gemini-2.0-flash-lite"
 
     search_mode: ConnectorMode = "mock"
     serper_api_key: str | None = None
