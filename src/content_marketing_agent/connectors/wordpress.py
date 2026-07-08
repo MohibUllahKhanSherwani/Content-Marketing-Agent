@@ -67,10 +67,35 @@ class WordPressConnector(HybridPlaceholderConnector):
         payload: dict[str, object] = {
             "title": content_item.title,
             "content": content_item.body,
-            "status": "draft",
+            "status": self._settings.wordpress_default_status or "draft",
         }
+        if content_item.meta_description:
+            payload["excerpt"] = content_item.meta_description
+        elif content_item.cta:
+            payload["excerpt"] = content_item.cta
+
         if self._settings.wordpress_default_author_id is not None:
             payload["author"] = self._settings.wordpress_default_author_id
+
+        if self._settings.wordpress_default_categories:
+            try:
+                payload["categories"] = [
+                    int(c.strip())
+                    for c in self._settings.wordpress_default_categories.split(",")
+                    if c.strip()
+                ]
+            except ValueError:
+                pass
+
+        if self._settings.wordpress_default_tags:
+            try:
+                payload["tags"] = [
+                    int(t.strip())
+                    for t in self._settings.wordpress_default_tags.split(",")
+                    if t.strip()
+                ]
+            except ValueError:
+                pass
 
         try:
             with httpx.Client(timeout=20.0, auth=(username, app_password)) as client:
