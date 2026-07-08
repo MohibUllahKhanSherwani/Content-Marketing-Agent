@@ -4,7 +4,12 @@ from content_marketing_agent.domain.enums import ConnectorMode, Platform
 
 
 def test_auto_connector_falls_back_to_mock_when_credentials_missing() -> None:
-    settings = AppSettings(wordpress_mode="auto")
+    settings = AppSettings(
+        wordpress_mode="auto",
+        wordpress_base_url=None,
+        wordpress_username=None,
+        wordpress_app_password=None,
+    )
     registry = build_connector_registry(settings)
 
     capabilities = registry.get(Platform.WORDPRESS).check_capabilities()
@@ -15,7 +20,12 @@ def test_auto_connector_falls_back_to_mock_when_credentials_missing() -> None:
 
 
 def test_real_connector_fails_loudly_when_credentials_missing() -> None:
-    settings = AppSettings(wordpress_mode="real")
+    settings = AppSettings(
+        wordpress_mode="real",
+        wordpress_base_url=None,
+        wordpress_username=None,
+        wordpress_app_password=None,
+    )
     registry = build_connector_registry(settings)
 
     capabilities = registry.get(Platform.WORDPRESS).check_capabilities()

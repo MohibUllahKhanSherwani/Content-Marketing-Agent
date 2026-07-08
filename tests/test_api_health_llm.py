@@ -7,7 +7,11 @@ from content_marketing_agent.config.settings import AppSettings
 def test_health_llm_reports_mock_when_gemini_not_configured(monkeypatch) -> None:
     from content_marketing_agent import api as api_module
 
-    monkeypatch.setattr(api_module, "get_settings", lambda: AppSettings(gemini_api_mode="real"))
+    monkeypatch.setattr(
+        api_module,
+        "get_settings",
+        lambda: AppSettings(gemini_api_mode="real", gemini_api_key=None),
+    )
     client = TestClient(app)
     response = client.get("/health/llm")
 

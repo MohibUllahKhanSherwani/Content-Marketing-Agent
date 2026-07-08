@@ -10,7 +10,7 @@ def test_produce_content_uses_mock_mode_when_gemini_not_configured() -> None:
     from content_marketing_agent import api as api_module
 
     api_module.content_item_store = ContentItemStore()
-    api_module.get_settings = lambda: AppSettings(gemini_api_mode="real")
+    api_module.get_settings = lambda: AppSettings(gemini_api_mode="real", gemini_api_key=None)
     client = TestClient(app)
 
     response = client.post("/runs/produce-content", json={"objective": "Increase demo pipeline"})
