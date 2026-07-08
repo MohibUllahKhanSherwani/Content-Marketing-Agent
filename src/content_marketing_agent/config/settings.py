@@ -38,6 +38,9 @@ class AppSettings(BaseSettings):
     wordpress_username: str | None = None
     wordpress_app_password: str | None = None
     wordpress_default_author_id: int | None = None
+    wordpress_default_status: str = "draft"
+    wordpress_default_categories: str | None = None
+    wordpress_default_tags: str | None = None
 
     hubspot_mode: ConnectorMode = "auto"
     hubspot_private_app_token: str | None = None
