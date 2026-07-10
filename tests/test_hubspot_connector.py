@@ -17,7 +17,7 @@ def _demo_item() -> ContentItem:
 
 
 def test_hubspot_auto_mode_uses_mock_without_credentials() -> None:
-    connector = HubSpotConnector(AppSettings(hubspot_mode="auto"))
+    connector = HubSpotConnector(AppSettings(hubspot_mode="auto", hubspot_private_app_token=None))
     result = connector.create_draft(_demo_item())
     assert result.mode == ConnectorMode.MOCK
     assert result.success is True
@@ -25,7 +25,7 @@ def test_hubspot_auto_mode_uses_mock_without_credentials() -> None:
 
 @respx.mock
 def test_hubspot_real_create_draft_success() -> None:
-    route = respx.post("https://api.hubapi.com/marketing/v3/marketing-emails/").mock(
+    route = respx.post("https://api.hubapi.com/marketing/v3/emails").mock(
         return_value=httpx.Response(201, json={"id": 987, "name": "Weekly Product Update", "isPublished": False})
     )
     connector = HubSpotConnector(
@@ -46,7 +46,7 @@ def test_hubspot_real_create_draft_success() -> None:
 
 @respx.mock
 def test_hubspot_real_create_draft_http_error_returns_structured_failure() -> None:
-    respx.post("https://api.hubapi.com/marketing/v3/marketing-emails/").mock(
+    respx.post("https://api.hubapi.com/marketing/v3/emails").mock(
         return_value=httpx.Response(403, json={"message": "forbidden"})
     )
     connector = HubSpotConnector(

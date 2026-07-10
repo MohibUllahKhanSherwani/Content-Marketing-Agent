@@ -87,7 +87,7 @@ def test_publish_draft_hubspot_real_mode_records_real_result(monkeypatch) -> Non
     )
 
     with respx.mock as router:
-        router.post("https://api.hubapi.com/marketing/v3/marketing-emails/").mock(
+        router.post("https://api.hubapi.com/marketing/v3/emails").mock(
             return_value=httpx.Response(201, json={"id": 234, "name": "Email draft", "isPublished": False})
         )
         client = TestClient(app)
@@ -163,7 +163,7 @@ def test_publish_marks_item_published_and_records_audit(monkeypatch) -> None:
     from content_marketing_agent import api as api_module
 
     api_module.content_item_store = ContentItemStore()
-    monkeypatch.setattr(api_module, "get_settings", lambda: AppSettings(allow_real_publish=False))
+    monkeypatch.setattr(api_module, "get_settings", lambda: AppSettings(allow_real_publish=False, wordpress_mode="mock"))
     client = TestClient(app)
     content_item_id = client.get("/content-items").json()[0]["id"]
     client.post(f"/content-items/{content_item_id}/approve", json={})
