@@ -67,19 +67,25 @@ class HubSpotConnector(HybridPlaceholderConnector):
         try:
             with httpx.Client(timeout=20.0, headers=headers) as client:
                 response = client.post(
-                    "https://api.hubapi.com/marketing/v3/marketing-emails/",
+                    "https://api.hubapi.com/marketing/v3/emails",
                     json=payload,
                 )
                 response.raise_for_status()
                 data = response.json()
         except httpx.HTTPStatusError as error:
+            try:
+                err_json = error.response.json()
+                msg = err_json.get("message", error.response.text)
+            except Exception:
+                msg = error.response.text
             return ConnectorResult(
                 platform=self.platform,
                 mode=ConnectorMode.REAL,
                 operation=PublicationOperation.CREATE_DRAFT.value,
                 success=False,
                 error_code="hubspot_http_error",
-                human_message=f"HubSpot draft creation failed with status {error.response.status_code}.",
+                human_message=f"HubSpot draft creation failed with status {error.response.status_code}: {msg}.",
+                raw_response={"status_code": error.response.status_code, "body": error.response.text},
             )
         except httpx.HTTPError as error:
             return ConnectorResult(
