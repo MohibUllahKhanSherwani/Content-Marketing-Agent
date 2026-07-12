@@ -53,7 +53,6 @@ class LinkedInConnector(HybridPlaceholderConnector):
 
     def create_draft(self, content_item: ContentItem) -> ConnectorResult:
         """Create a LinkedIn post (recorded locally as a draft)."""
-        from content_marketing_agent.connectors.hybrid import HybridPlaceholderConnector
         capabilities = self.check_capabilities()
         if capabilities.active_mode == ConnectorMode.MOCK:
             return self.mock.create_draft(content_item)
