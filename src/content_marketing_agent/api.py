@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from content_marketing_agent.config.settings import get_settings
@@ -37,6 +38,16 @@ app = FastAPI(
     version="0.1.0",
     description="CrewAI content marketing workflow with Gemini API and hybrid connectors.",
 )
+
+# Add CORS middleware for frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins for local development
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
 content_item_store = ContentItemStore.from_settings(get_settings())
 
 
