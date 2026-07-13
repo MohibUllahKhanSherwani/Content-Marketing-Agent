@@ -12,6 +12,9 @@ export type ContentItem = {
   title: string
   status: string
   scheduled_at?: string | null
+  target_platform?: string
+  format?: string
+  body?: string
 }
 
 export type Publication = {
