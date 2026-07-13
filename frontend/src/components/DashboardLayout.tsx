@@ -12,10 +12,12 @@ const links = [
 export function DashboardLayout() {
   return (
     <main className="dashboard">
-      <header className="hero">
-        <h1>Content Operations Dashboard</h1>
-        <p>Operate safe approval, publication, and telemetry flows.</p>
-        <nav className="nav-grid" aria-label="Dashboard navigation">
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <h1>Content Agent Team</h1>
+          <p>Multi-Channel Marketing Ops</p>
+        </div>
+        <nav className="nav-list" aria-label="Dashboard navigation">
           {links.map((link) => (
             <NavLink
               key={link.to}
@@ -26,8 +28,11 @@ export function DashboardLayout() {
             </NavLink>
           ))}
         </nav>
-      </header>
-      <Outlet />
+      </aside>
+      
+      <div className="content-area">
+        <Outlet />
+      </div>
     </main>
   )
 }
